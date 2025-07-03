@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       clicks: {
         Row: {
+          browser: string | null
           city: string | null
           clicked_at: string
           country: string | null
@@ -18,10 +19,14 @@ export type Database = {
           id: string
           ip_address: unknown | null
           link_id: string
+          os: string | null
           referer: string | null
+          region: string | null
+          timezone: string | null
           user_agent: string | null
         }
         Insert: {
+          browser?: string | null
           city?: string | null
           clicked_at?: string
           country?: string | null
@@ -29,10 +34,14 @@ export type Database = {
           id?: string
           ip_address?: unknown | null
           link_id: string
+          os?: string | null
           referer?: string | null
+          region?: string | null
+          timezone?: string | null
           user_agent?: string | null
         }
         Update: {
+          browser?: string | null
           city?: string | null
           clicked_at?: string
           country?: string | null
@@ -40,7 +49,10 @@ export type Database = {
           id?: string
           ip_address?: unknown | null
           link_id?: string
+          os?: string | null
           referer?: string | null
+          region?: string | null
+          timezone?: string | null
           user_agent?: string | null
         }
         Relationships: [
@@ -57,9 +69,12 @@ export type Database = {
         Row: {
           created_at: string
           custom_slug: boolean
+          expires_at: string | null
           id: string
           is_active: boolean
+          max_clicks: number | null
           original_url: string
+          password: string | null
           short_slug: string
           title: string | null
           updated_at: string
@@ -69,9 +84,12 @@ export type Database = {
         Insert: {
           created_at?: string
           custom_slug?: boolean
+          expires_at?: string | null
           id?: string
           is_active?: boolean
+          max_clicks?: number | null
           original_url: string
+          password?: string | null
           short_slug: string
           title?: string | null
           updated_at?: string
@@ -81,9 +99,12 @@ export type Database = {
         Update: {
           created_at?: string
           custom_slug?: boolean
+          expires_at?: string | null
           id?: string
           is_active?: boolean
+          max_clicks?: number | null
           original_url?: string
+          password?: string | null
           short_slug?: string
           title?: string | null
           updated_at?: string
@@ -144,6 +165,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          joined_at: string | null
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workspaces: {
         Row: {

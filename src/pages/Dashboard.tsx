@@ -10,6 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { 
   Link, 
   BarChart3, 
@@ -24,7 +27,16 @@ import {
   CreditCard,
   LogOut,
   Filter,
-  Settings
+  Settings,
+  Trash2,
+  Edit,
+  Users,
+  Clock,
+  Lock,
+  Upload,
+  Download,
+  UserPlus,
+  MoreVertical
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,6 +54,9 @@ interface LinkData {
   short_slug: string;
   custom_slug: boolean;
   is_active: boolean;
+  expires_at: string | null;
+  password: string | null;
+  max_clicks: number | null;
   created_at: string;
   clicks?: ClickData[];
 }
@@ -49,8 +64,23 @@ interface LinkData {
 interface ClickData {
   id: string;
   country: string | null;
+  city: string | null;
+  region: string | null;
+  browser: string | null;
+  os: string | null;
   device_type: string;
   clicked_at: string;
+}
+
+interface WorkspaceMember {
+  id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  profiles?: {
+    email: string;
+    full_name: string | null;
+  };
 }
 
 const Dashboard = () => {
@@ -65,6 +95,12 @@ const Dashboard = () => {
   const [createLinkLoading, setCreateLinkLoading] = useState(false);
   const [customDomain, setCustomDomain] = useState<string>('');
   const [savingDomain, setSavingDomain] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [showBulkCreate, setShowBulkCreate] = useState(false);
+  const [bulkUrls, setBulkUrls] = useState('');
+  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [invitingMember, setInvitingMember] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -75,6 +111,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (currentWorkspace) {
       fetchLinks();
+      fetchWorkspaceMembers();
     }
   }, [currentWorkspace]);
 
@@ -88,12 +125,59 @@ const Dashboard = () => {
     filterLinks();
   }, [links, selectedLinkFilter]);
 
+  // Real-time click tracking
+  useEffect(() => {
+    if (currentWorkspace) {
+      const channel = supabase
+        .channel('clicks-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'clicks'
+          },
+          () => {
+            // Refresh links when new clicks come in
+            fetchLinks();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [currentWorkspace]);
+
   const filterLinks = () => {
     if (selectedLinkFilter === "all") {
       setFilteredLinks(links);
     } else {
       const filtered = links.filter(link => link.id === selectedLinkFilter);
       setFilteredLinks(filtered);
+    }
+  };
+
+  const fetchWorkspaceMembers = async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('workspace_members')
+        .select(`
+          id,
+          user_id,
+          role,
+          joined_at
+        `)
+        .eq('workspace_id', currentWorkspace.id)
+        .order('joined_at', { ascending: false });
+
+      if (error) throw error;
+      setWorkspaceMembers((data || []) as WorkspaceMember[]);
+    } catch (error) {
+      console.error('Error fetching workspace members:', error);
     }
   };
 
@@ -135,12 +219,12 @@ const Dashboard = () => {
 
       if (linksError) throw linksError;
 
-      // Fetch click analytics for each link
+      // Fetch click analytics for each link with enhanced data
       const linksWithClicks = await Promise.all(
         (linksData || []).map(async (link) => {
           const { data: clicksData } = await supabase
             .from('clicks')
-            .select('id, country, device_type, clicked_at')
+            .select('id, country, city, region, browser, os, device_type, clicked_at')
             .eq('link_id', link.id)
             .order('clicked_at', { ascending: false });
 
@@ -287,6 +371,108 @@ const Dashboard = () => {
       });
     } finally {
       setSavingDomain(false);
+    }
+  };
+
+  const deleteLink = async (linkId: string) => {
+    try {
+      const { error } = await supabase
+        .from('links')
+        .delete()
+        .eq('id', linkId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Link Deleted",
+        description: "Link has been permanently deleted",
+      });
+
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Error deleting link:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete link",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleLinkStatus = async (linkId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('links')
+        .update({ is_active: !currentStatus })
+        .eq('id', linkId);
+
+      if (error) throw error;
+
+      toast({
+        title: currentStatus ? "Link Disabled" : "Link Enabled",
+        description: currentStatus ? "Link is now inactive" : "Link is now active",
+      });
+
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Error updating link status:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update link status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const createBulkLinks = async () => {
+    if (!currentWorkspace || !bulkUrls.trim()) return;
+
+    const urls = bulkUrls.split('\n').filter(url => url.trim());
+    if (urls.length === 0) return;
+
+    try {
+      setCreateLinkLoading(true);
+
+      const linkPromises = urls.map(async (url) => {
+        const { data: slugData, error: slugError } = await supabase
+          .rpc('generate_short_slug');
+        
+        if (slugError) throw slugError;
+
+        return {
+          workspace_id: currentWorkspace.id,
+          user_id: user?.id,
+          original_url: url.trim(),
+          short_slug: slugData,
+          custom_slug: false
+        };
+      });
+
+      const linksToCreate = await Promise.all(linkPromises);
+
+      const { error } = await supabase
+        .from('links')
+        .insert(linksToCreate);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bulk Links Created",
+        description: `Successfully created ${urls.length} links`,
+      });
+
+      setBulkUrls('');
+      setShowBulkCreate(false);
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Error creating bulk links:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create bulk links",
+        variant: "destructive"
+      });
+    } finally {
+      setCreateLinkLoading(false);
     }
   };
 
@@ -511,9 +697,52 @@ const Dashboard = () => {
                       />
                     </div>
                   </div>
-                  <Button type="submit" disabled={createLinkLoading}>
-                    {createLinkLoading ? "Creating..." : "Create Link"}
-                  </Button>
+                  <div className="flex space-x-2">
+                    <Button type="submit" disabled={createLinkLoading} className="flex-1">
+                      {createLinkLoading ? "Creating..." : "Create Link"}
+                    </Button>
+                    {profile?.subscription_tier === 'pro' && (
+                      <Dialog open={showBulkCreate} onOpenChange={setShowBulkCreate}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" type="button">
+                            <Upload className="h-4 w-4 mr-2" />
+                            Bulk Create
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Bulk Create Links</DialogTitle>
+                            <DialogDescription>
+                              Add multiple URLs, one per line
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <Textarea
+                              placeholder="https://example1.com&#10;https://example2.com&#10;https://example3.com"
+                              value={bulkUrls}
+                              onChange={(e) => setBulkUrls(e.target.value)}
+                              rows={10}
+                            />
+                            <div className="flex space-x-2">
+                              <Button 
+                                onClick={createBulkLinks} 
+                                disabled={createLinkLoading || !bulkUrls.trim()}
+                                className="flex-1"
+                              >
+                                {createLinkLoading ? "Creating..." : "Create All Links"}
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => setShowBulkCreate(false)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -590,7 +819,48 @@ const Dashboard = () => {
                               <Calendar className="h-3 w-3" />
                               <span>{getClicksLast7Days(link.clicks || [])} this week</span>
                             </span>
+                            {link.expires_at && (
+                              <span className="flex items-center space-x-1">
+                                <Clock className="h-3 w-3" />
+                                <span>Expires {new Date(link.expires_at).toLocaleDateString()}</span>
+                              </span>
+                            )}
                           </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Link Actions</DialogTitle>
+                                <DialogDescription>
+                                  Manage your link: {link.title || 'Untitled'}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-2">
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start"
+                                  onClick={() => toggleLinkStatus(link.id, link.is_active)}
+                                >
+                                  {link.is_active ? 'Disable Link' : 'Enable Link'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-destructive"
+                                  onClick={() => deleteLink(link.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Link
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         </div>
                         
                         {profile?.subscription_tier === 'pro' && link.clicks && link.clicks.length > 0 && (
@@ -624,32 +894,43 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            {profile?.subscription_tier === 'free' ? (
+            {filteredLinks.length === 0 && selectedLinkFilter !== "all" ? (
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-center">
+                  <div className="text-center text-muted-foreground">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium mb-2">Analytics Available in Pro</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Upgrade to Pro to access detailed analytics, location data, and device insights.
-                    </p>
-                    <Button>Upgrade to Pro</Button>
+                    <h3 className="text-lg font-medium mb-2">No analytics data</h3>
+                    <p>No analytics available for the selected filter.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : links.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-muted-foreground">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No analytics yet</h3>
+                    <p>Create some links to see analytics data.</p>
                   </div>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Geographic Analytics */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Globe className="h-5 w-5" />
                       <span>Top Countries</span>
                     </CardTitle>
+                    <CardDescription>
+                      {selectedLinkFilter === "all" ? "Clicks by country" : "Countries for selected link"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {Object.entries(
-                        links.flatMap(link => link.clicks || [])
+                        filteredLinks.flatMap(link => link.clicks || [])
                           .reduce((acc, click) => {
                             const country = click.country || 'Unknown';
                             acc[country] = (acc[country] || 0) + 1;
@@ -668,37 +949,99 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
 
+                {/* Device Analytics */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Monitor className="h-5 w-5" />
-                      <span>Device Types</span>
-                    </CardTitle>
+                    <CardTitle>Device Analytics</CardTitle>
+                    <CardDescription>
+                      {selectedLinkFilter === "all" ? "Clicks by device type" : "Device breakdown for selected link"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      {Object.entries(
-                        links.flatMap(link => link.clicks || [])
-                          .reduce((acc, click) => {
-                            const device = click.device_type || 'unknown';
-                            acc[device] = (acc[device] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                      )
-                        .sort(([,a], [,b]) => b - a)
-                        .map(([device, count]) => (
-                          <div key={device} className="flex justify-between items-center">
-                            <div className="flex items-center space-x-2">
-                              {device === 'mobile' ? (
-                                <Smartphone className="h-4 w-4" />
-                              ) : (
-                                <Monitor className="h-4 w-4" />
-                              )}
-                              <span className="text-sm capitalize">{device}</span>
-                            </div>
-                            <span className="text-sm font-medium">{count} clicks</span>
-                          </div>
-                        ))}
+                    <div className="space-y-4">
+                      {(() => {
+                        const allClicks = filteredLinks.flatMap(link => link.clicks || []);
+                        const deviceStats = getDeviceStats(allClicks);
+                        const totalClicks = allClicks.length;
+
+                        return Object.entries(deviceStats)
+                          .sort(([,a], [,b]) => b - a)
+                          .map(([device, count]) => {
+                            const percentage = totalClicks > 0 ? Math.round((count / totalClicks) * 100) : 0;
+                            return (
+                              <div key={device} className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    {device === 'mobile' ? (
+                                      <Smartphone className="h-4 w-4" />
+                                    ) : device === 'tablet' ? (
+                                      <Smartphone className="h-4 w-4" />
+                                    ) : (
+                                      <Monitor className="h-4 w-4" />
+                                    )}
+                                    <span className="text-sm capitalize">{device}</span>
+                                  </div>
+                                  <span className="text-sm font-medium">{count} ({percentage}%)</span>
+                                </div>
+                                <Progress value={percentage} className="h-2" />
+                              </div>
+                            );
+                          });
+                      })()}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Browser & OS Analytics */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Browser & OS</CardTitle>
+                    <CardDescription>Browser and operating system breakdown</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Top Browsers</h4>
+                        <div className="space-y-2">
+                          {Object.entries(
+                            filteredLinks.flatMap(link => link.clicks || [])
+                              .reduce((acc, click) => {
+                                const browser = click.browser || 'Unknown';
+                                acc[browser] = (acc[browser] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>)
+                          )
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 3)
+                            .map(([browser, count]) => (
+                              <div key={browser} className="flex justify-between items-center text-sm">
+                                <span>{browser}</span>
+                                <span className="font-medium">{count}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Top OS</h4>
+                        <div className="space-y-2">
+                          {Object.entries(
+                            filteredLinks.flatMap(link => link.clicks || [])
+                              .reduce((acc, click) => {
+                                const os = click.os || 'Unknown';
+                                acc[os] = (acc[os] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>)
+                          )
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 3)
+                            .map(([os, count]) => (
+                              <div key={os} className="flex justify-between items-center text-sm">
+                                <span>{os}</span>
+                                <span className="font-medium">{count}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

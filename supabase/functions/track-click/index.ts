@@ -24,26 +24,50 @@ serve(async (req) => {
       throw new Error('Link ID is required');
     }
 
+    // Enhanced user agent parsing
+    const getBrowser = (ua: string) => {
+      if (ua.includes('Chrome')) return 'Chrome';
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Safari')) return 'Safari';
+      if (ua.includes('Edge')) return 'Edge';
+      return 'Other';
+    };
+
+    const getOS = (ua: string) => {
+      if (ua.includes('Windows')) return 'Windows';
+      if (ua.includes('Mac')) return 'macOS';
+      if (ua.includes('Linux')) return 'Linux';
+      if (ua.includes('Android')) return 'Android';
+      if (ua.includes('iOS')) return 'iOS';
+      return 'Other';
+    };
+
+    const browser = getBrowser(userAgent || '');
+    const os = getOS(userAgent || '');
+
     // Get client IP from headers (Cloudflare, nginx, etc.)
     const clientIP = req.headers.get('cf-connecting-ip') || 
                      req.headers.get('x-forwarded-for') || 
                      req.headers.get('x-real-ip') || 
                      'unknown';
 
-    // For MVP, we'll set country as unknown since we don't have a geolocation service
-    // In production, you'd use a service like ipapi.co or maxmind
+    // Enhanced geolocation
     let country = 'Unknown';
     let city = 'Unknown';
+    let region = 'Unknown';
+    let timezone = 'Unknown';
 
-    // Basic geolocation using a free service (optional)
+    // Enhanced geolocation using a free service
     try {
       if (clientIP !== 'unknown' && !clientIP.includes('127.0.0.1') && !clientIP.includes('localhost')) {
-        const geoResponse = await fetch(`http://ip-api.com/json/${clientIP}`);
+        const geoResponse = await fetch(`http://ip-api.com/json/${clientIP}?fields=status,country,city,regionName,timezone`);
         if (geoResponse.ok) {
           const geoData = await geoResponse.json();
           if (geoData.status === 'success') {
             country = geoData.country || 'Unknown';
             city = geoData.city || 'Unknown';
+            region = geoData.regionName || 'Unknown';
+            timezone = geoData.timezone || 'Unknown';
           }
         }
       }
@@ -51,7 +75,7 @@ serve(async (req) => {
       console.log('Geolocation failed, using Unknown:', geoError);
     }
 
-    // Insert click record
+    // Insert enhanced click record
     const { error } = await supabaseClient
       .from('clicks')
       .insert({
@@ -61,6 +85,10 @@ serve(async (req) => {
         referer: referer || null,
         country,
         city,
+        region,
+        timezone,
+        browser,
+        os,
         device_type: deviceType || 'unknown'
       });
 
