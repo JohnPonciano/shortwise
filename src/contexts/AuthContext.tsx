@@ -11,6 +11,7 @@ interface Profile {
   subscription_tier: 'free' | 'pro';
   subscription_active: boolean;
   subscription_end_date: string | null;
+  custom_domain: string | null;
 }
 
 interface AuthContextType {

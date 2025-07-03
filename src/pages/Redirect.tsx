@@ -34,13 +34,46 @@ const Redirect = () => {
 
   const handleRedirect = async () => {
     try {
-      // Find the link by slug
-      const { data: linkData, error: linkError } = await supabase
-        .from('links')
-        .select('id, original_url, title, is_active')
-        .eq('short_slug', slug)
-        .eq('is_active', true)
-        .single();
+      // Check if this is a custom domain request
+      const currentDomain = window.location.hostname;
+      const isCustomDomain = currentDomain !== 'localhost' && 
+                            !currentDomain.includes('lovableproject.com') && 
+                            !currentDomain.includes('shortwise.app');
+
+      let linkData;
+      let linkError;
+
+      if (isCustomDomain) {
+        // For custom domains, we need to join with profiles to check domain ownership
+        const { data, error } = await supabase
+          .from('links')
+          .select(`
+            id, 
+            original_url, 
+            title, 
+            is_active,
+            user_id,
+            profiles!inner(custom_domain)
+          `)
+          .eq('short_slug', slug)
+          .eq('is_active', true)
+          .eq('profiles.custom_domain', currentDomain)
+          .single();
+
+        linkData = data;
+        linkError = error;
+      } else {
+        // Standard domain handling
+        const { data, error } = await supabase
+          .from('links')
+          .select('id, original_url, title, is_active')
+          .eq('short_slug', slug)
+          .eq('is_active', true)
+          .single();
+
+        linkData = data;
+        linkError = error;
+      }
 
       if (linkError || !linkData) {
         setError('Link not found or has been disabled');

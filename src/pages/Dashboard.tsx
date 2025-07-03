@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Link, 
   BarChart3, 
@@ -21,7 +22,9 @@ import {
   Smartphone,
   Monitor,
   CreditCard,
-  LogOut
+  LogOut,
+  Filter,
+  Settings
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,13 +54,17 @@ interface ClickData {
 }
 
 const Dashboard = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [links, setLinks] = useState<LinkData[]>([]);
+  const [filteredLinks, setFilteredLinks] = useState<LinkData[]>([]);
+  const [selectedLinkFilter, setSelectedLinkFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [createLinkLoading, setCreateLinkLoading] = useState(false);
+  const [customDomain, setCustomDomain] = useState<string>('');
+  const [savingDomain, setSavingDomain] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -70,6 +77,25 @@ const Dashboard = () => {
       fetchLinks();
     }
   }, [currentWorkspace]);
+
+  useEffect(() => {
+    if (profile?.custom_domain) {
+      setCustomDomain(profile.custom_domain);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    filterLinks();
+  }, [links, selectedLinkFilter]);
+
+  const filterLinks = () => {
+    if (selectedLinkFilter === "all") {
+      setFilteredLinks(links);
+    } else {
+      const filtered = links.filter(link => link.id === selectedLinkFilter);
+      setFilteredLinks(filtered);
+    }
+  };
 
   const fetchWorkspaces = async () => {
     try {
@@ -217,12 +243,51 @@ const Dashboard = () => {
   };
 
   const copyToClipboard = (slug: string) => {
-    const shortUrl = `${window.location.origin}/${slug}`;
+    const domain = profile?.custom_domain && profile?.subscription_tier === 'pro' 
+      ? profile.custom_domain 
+      : window.location.origin;
+    const shortUrl = `${domain}/${slug}`;
     navigator.clipboard.writeText(shortUrl);
     toast({
       title: "Copied!",
       description: "Short link copied to clipboard",
     });
+  };
+
+  const saveDomain = async () => {
+    if (!user || profile?.subscription_tier !== 'pro') {
+      toast({
+        title: "Pro Required",
+        description: "Custom domains are available for Pro users only",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSavingDomain(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ custom_domain: customDomain || null })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await refreshProfile();
+      toast({
+        title: "Domain Updated",
+        description: "Your custom domain has been saved successfully",
+      });
+    } catch (error: any) {
+      console.error('Error saving domain:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save custom domain",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingDomain(false);
+    }
   };
 
   const getClicksLast7Days = (clicks: ClickData[]) => {
@@ -356,9 +421,45 @@ const Dashboard = () => {
           <TabsList>
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            {profile?.subscription_tier === 'pro' && (
+              <TabsTrigger value="settings">Pro Settings</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="links" className="space-y-6">
+            {/* Pro Filter Controls */}
+            {profile?.subscription_tier === 'pro' && links.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Filter className="h-5 w-5" />
+                    <span>Filter Analytics</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Filter your analytics data by specific link
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-4">
+                    <Label htmlFor="link-filter">Filter by Link:</Label>
+                    <Select value={selectedLinkFilter} onValueChange={setSelectedLinkFilter}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Select a link" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Links</SelectItem>
+                        {links.map((link) => (
+                          <SelectItem key={link.id} value={link.id}>
+                            {link.title || 'Untitled'} ({link.short_slug})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Create Link Form */}
             <Card>
               <CardHeader>
@@ -397,7 +498,9 @@ const Dashboard = () => {
                     <Label htmlFor="custom_slug">Custom Slug (optional)</Label>
                     <div className="flex">
                       <span className="inline-flex items-center px-3 text-sm border border-r-0 border-input bg-muted rounded-l-md">
-                        {window.location.origin}/
+                        {profile?.custom_domain && profile?.subscription_tier === 'pro' 
+                          ? `${profile.custom_domain}/` 
+                          : `${window.location.origin}/`}
                       </span>
                       <Input
                         id="custom_slug"
@@ -417,7 +520,17 @@ const Dashboard = () => {
 
             {/* Links List */}
             <div className="space-y-4">
-              {links.length === 0 ? (
+              {filteredLinks.length === 0 && selectedLinkFilter !== "all" ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center text-muted-foreground">
+                      <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <h3 className="text-lg font-medium mb-2">No results</h3>
+                      <p>No data found for the selected filter. Try selecting a different link.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : links.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center text-muted-foreground">
@@ -428,7 +541,7 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                links.map((link) => (
+                filteredLinks.map((link) => (
                   <Card key={link.id}>
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between">
@@ -444,7 +557,9 @@ const Dashboard = () => {
                           
                           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                             <span className="font-mono bg-secondary px-2 py-1 rounded">
-                              {window.location.origin}/{link.short_slug}
+                              {profile?.custom_domain && profile?.subscription_tier === 'pro' 
+                                ? `${profile.custom_domain}/${link.short_slug}`
+                                : `${window.location.origin}/${link.short_slug}`}
                             </span>
                             <Button
                               variant="ghost"
@@ -590,6 +705,88 @@ const Dashboard = () => {
               </div>
             )}
           </TabsContent>
+          {/* Pro Settings Tab */}
+          {profile?.subscription_tier === 'pro' && (
+            <TabsContent value="settings" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Settings className="h-5 w-5" />
+                    <span>Pro Settings</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Advanced settings available for Pro users
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Custom Domain */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Custom Domain</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Use your own domain for all short links. Make sure your domain points to our servers.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="custom_domain">Domain (without protocol)</Label>
+                      <div className="flex space-x-2">
+                        <Input
+                          id="custom_domain"
+                          type="text"
+                          placeholder="links.yourcompany.com"
+                          value={customDomain}
+                          onChange={(e) => setCustomDomain(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button 
+                          onClick={saveDomain} 
+                          disabled={savingDomain}
+                          variant="outline"
+                        >
+                          {savingDomain ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {profile?.custom_domain && (
+                      <Alert>
+                        <Globe className="h-4 w-4" />
+                        <AlertDescription>
+                          Your custom domain is active: <strong>{profile.custom_domain}</strong>
+                          <br />
+                          Make sure your domain's CNAME record points to: <code>shortwise.app</code>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  {/* Pro Features List */}
+                  <div className="pt-6 border-t">
+                    <h3 className="text-lg font-medium mb-4">Pro Features Active</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-success rounded-full"></div>
+                        <span className="text-sm">Unlimited links</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-success rounded-full"></div>
+                        <span className="text-sm">Advanced analytics</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-success rounded-full"></div>
+                        <span className="text-sm">Link filtering</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-success rounded-full"></div>
+                        <span className="text-sm">Custom domain</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
