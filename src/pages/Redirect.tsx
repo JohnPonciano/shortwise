@@ -51,24 +51,33 @@ const Redirect = () => {
 
       if (isCustomDomain) {
         console.log('Querying for custom domain...');
-        // For custom domains, we need to join with profiles to check domain ownership
-        const { data, error } = await supabase
+        // First get the link
+        const { data: linkResult, error: linkErr } = await supabase
           .from('links')
-          .select(`
-            id, 
-            original_url, 
-            title, 
-            is_active,
-            user_id,
-            profiles!inner(custom_domain)
-          `)
+          .select('id, original_url, title, is_active, user_id')
           .eq('short_slug', slug)
           .eq('is_active', true)
-          .eq('profiles.custom_domain', currentDomain)
           .maybeSingle();
 
-        linkData = data;
-        linkError = error;
+        if (linkErr || !linkResult) {
+          linkData = null;
+          linkError = linkErr;
+        } else {
+          // Then check if the user's custom domain matches
+          const { data: profileResult, error: profileErr } = await supabase
+            .from('profiles')
+            .select('custom_domain')
+            .eq('user_id', linkResult.user_id)
+            .maybeSingle();
+
+          if (profileErr || !profileResult || profileResult.custom_domain !== currentDomain) {
+            linkData = null;
+            linkError = { message: 'Custom domain mismatch' };
+          } else {
+            linkData = linkResult;
+            linkError = null;
+          }
+        }
       } else {
         console.log('Querying for standard domain...');
         // Standard domain handling
