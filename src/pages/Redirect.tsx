@@ -58,7 +58,7 @@ const Redirect = () => {
           .eq('short_slug', slug)
           .eq('is_active', true)
           .eq('profiles.custom_domain', currentDomain)
-          .single();
+          .maybeSingle();
 
         linkData = data;
         linkError = error;
@@ -69,13 +69,20 @@ const Redirect = () => {
           .select('id, original_url, title, is_active')
           .eq('short_slug', slug)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
 
         linkData = data;
         linkError = error;
       }
 
-      if (linkError || !linkData) {
+      if (linkError) {
+        console.error('Database error:', linkError);
+        setError('An error occurred while processing the redirect');
+        setLoading(false);
+        return;
+      }
+
+      if (!linkData) {
         setError('Link not found or has been disabled');
         setLoading(false);
         return;
