@@ -34,16 +34,23 @@ const Redirect = () => {
 
   const handleRedirect = async () => {
     try {
+      console.log('Redirect attempt for slug:', slug);
+      
       // Check if this is a custom domain request
       const currentDomain = window.location.hostname;
+      console.log('Current domain:', currentDomain);
+      
       const isCustomDomain = currentDomain !== 'localhost' && 
                             !currentDomain.includes('lovableproject.com') && 
                             !currentDomain.includes('shortwise.app');
+      
+      console.log('Is custom domain:', isCustomDomain);
 
       let linkData;
       let linkError;
 
       if (isCustomDomain) {
+        console.log('Querying for custom domain...');
         // For custom domains, we need to join with profiles to check domain ownership
         const { data, error } = await supabase
           .from('links')
@@ -63,6 +70,7 @@ const Redirect = () => {
         linkData = data;
         linkError = error;
       } else {
+        console.log('Querying for standard domain...');
         // Standard domain handling
         const { data, error } = await supabase
           .from('links')
@@ -75,6 +83,8 @@ const Redirect = () => {
         linkError = error;
       }
 
+      console.log('Query result:', { linkData, linkError });
+
       if (linkError) {
         console.error('Database error:', linkError);
         setError('An error occurred while processing the redirect');
@@ -83,6 +93,7 @@ const Redirect = () => {
       }
 
       if (!linkData) {
+        console.log('No link data found for slug:', slug);
         setError('Link not found or has been disabled');
         setLoading(false);
         return;
