@@ -829,38 +829,20 @@ const Dashboard = () => {
                         </div>
                         
                         <div className="flex items-center space-x-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Link Actions</DialogTitle>
-                                <DialogDescription>
-                                  Manage your link: {link.title || 'Untitled'}
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-2">
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-start"
-                                  onClick={() => toggleLinkStatus(link.id, link.is_active)}
-                                >
-                                  {link.is_active ? 'Disable Link' : 'Enable Link'}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-start text-destructive"
-                                  onClick={() => deleteLink(link.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Link
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleLinkStatus(link.id, link.is_active)}
+                          >
+                            {link.is_active ? 'Disable' : 'Enable'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteLink(link.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                         
                         {profile?.subscription_tier === 'pro' && link.clicks && link.clicks.length > 0 && (
