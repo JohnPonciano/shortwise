@@ -42,6 +42,7 @@ const Redirect = () => {
       
       const isCustomDomain = currentDomain !== 'localhost' && 
                             !currentDomain.includes('lovableproject.com') && 
+                            !currentDomain.includes('lovable.app') &&
                             !currentDomain.includes('shortwise.app');
       
       console.log('Is custom domain:', isCustomDomain);
