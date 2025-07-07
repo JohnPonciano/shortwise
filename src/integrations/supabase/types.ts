@@ -67,48 +67,87 @@ export type Database = {
       }
       links: {
         Row: {
+          ab_test_urls: string[] | null
+          ab_test_weights: number[] | null
+          click_count: number | null
           created_at: string
           custom_slug: boolean
+          deep_link_android: string | null
+          deep_link_ios: string | null
           expires_at: string | null
           id: string
           is_active: boolean
           max_clicks: number | null
           original_url: string
           password: string | null
+          password_protected: boolean | null
+          qr_code_enabled: boolean | null
           short_slug: string
+          tags: string[] | null
           title: string | null
           updated_at: string
           user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           workspace_id: string
         }
         Insert: {
+          ab_test_urls?: string[] | null
+          ab_test_weights?: number[] | null
+          click_count?: number | null
           created_at?: string
           custom_slug?: boolean
+          deep_link_android?: string | null
+          deep_link_ios?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean
           max_clicks?: number | null
           original_url: string
           password?: string | null
+          password_protected?: boolean | null
+          qr_code_enabled?: boolean | null
           short_slug: string
+          tags?: string[] | null
           title?: string | null
           updated_at?: string
           user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           workspace_id: string
         }
         Update: {
+          ab_test_urls?: string[] | null
+          ab_test_weights?: number[] | null
+          click_count?: number | null
           created_at?: string
           custom_slug?: boolean
+          deep_link_android?: string | null
+          deep_link_ios?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean
           max_clicks?: number | null
           original_url?: string
           password?: string | null
+          password_protected?: boolean | null
+          qr_code_enabled?: boolean | null
           short_slug?: string
+          tags?: string[] | null
           title?: string | null
           updated_at?: string
           user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           workspace_id?: string
         }
         Relationships: [

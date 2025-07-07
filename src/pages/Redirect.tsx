@@ -2,14 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ExternalLink } from 'lucide-react';
+import PasswordProtection from '@/components/LinkFeatures/PasswordProtection';
 
 const Redirect = () => {
   const { slug } = useParams<{ slug: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [linkInfo, setLinkInfo] = useState<{
+    id: string;
     original_url: string;
     title: string | null;
+    password: string | null;
+    expires_at: string | null;
+    max_clicks: number | null;
+    click_count: number;
+    ab_test_urls: string[];
+    deep_link_ios: string | null;
+    deep_link_android: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -55,7 +66,7 @@ const Redirect = () => {
         // First get the link
         const { data: linkResult, error: linkErr } = await supabase
           .from('links')
-          .select('id, original_url, title, is_active, user_id')
+          .select('id, original_url, title, is_active, user_id, password, expires_at, max_clicks, click_count, ab_test_urls, deep_link_ios, deep_link_android')
           .eq('short_slug', slug)
           .eq('is_active', true)
           .maybeSingle();
@@ -84,7 +95,7 @@ const Redirect = () => {
         // Standard domain handling
         const { data, error } = await supabase
           .from('links')
-          .select('id, original_url, title, is_active')
+          .select('id, original_url, title, is_active, password, expires_at, max_clicks, click_count, ab_test_urls, deep_link_ios, deep_link_android')
           .eq('short_slug', slug)
           .eq('is_active', true)
           .maybeSingle();
@@ -109,17 +120,66 @@ const Redirect = () => {
         return;
       }
 
-      setLinkInfo({
-        original_url: linkData.original_url,
-        title: linkData.title
-      });
+      // Check if link has expired
+      if (linkData.expires_at && new Date(linkData.expires_at) < new Date()) {
+        setError('Este link expirou');
+        setLoading(false);
+        return;
+      }
+
+      // Check if max clicks reached
+      if (linkData.max_clicks && linkData.click_count >= linkData.max_clicks) {
+        setError('Este link atingiu o limite máximo de cliques');
+        setLoading(false);
+        return;
+      }
+
+      setLinkInfo(linkData);
+
+      // Check if password is required
+      if (linkData.password) {
+        setPasswordRequired(true);
+        setLoading(false);
+        return;
+      }
+
+      // If no password required, proceed with redirect
+      await performRedirect(linkData);
+
+      // This code moved to performRedirect function
+
+    } catch (error) {
+      console.error('Error handling redirect:', error);
+      setError('An error occurred while processing the redirect');
+      setLoading(false);
+    }
+  };
+
+  const performRedirect = async (linkData: any) => {
+    try {
+      // Detect platform for deep linking
+      const userAgent = navigator.userAgent;
+      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+      const isAndroid = /Android/.test(userAgent);
+      
+      let redirectUrl = linkData.original_url;
+      
+      // Handle A/B testing
+      if (linkData.ab_test_urls && linkData.ab_test_urls.length > 0) {
+        const allUrls = [linkData.original_url, ...linkData.ab_test_urls];
+        redirectUrl = allUrls[Math.floor(Math.random() * allUrls.length)];
+      }
+      
+      // Handle deep linking
+      if (isIOS && linkData.deep_link_ios) {
+        redirectUrl = linkData.deep_link_ios;
+      } else if (isAndroid && linkData.deep_link_android) {
+        redirectUrl = linkData.deep_link_android;
+      }
 
       // Track the click
-      const userAgent = navigator.userAgent;
       const deviceType = detectDevice(userAgent);
       
-      // Get user's IP and location (this would be done server-side in production)
-      // For now, we'll just record basic info
       await supabase.functions.invoke('track-click', {
         body: {
           linkId: linkData.id,
@@ -131,15 +191,39 @@ const Redirect = () => {
 
       // Redirect after a brief moment
       setTimeout(() => {
-        window.location.href = linkData.original_url;
+        window.location.href = redirectUrl;
       }, 1000);
-
+      
     } catch (error) {
-      console.error('Error handling redirect:', error);
-      setError('An error occurred while processing the redirect');
+      console.error('Error during redirect:', error);
+      setError('Erro durante o redirecionamento');
       setLoading(false);
     }
   };
+
+  const handlePasswordSubmit = async (password: string) => {
+    if (!linkInfo || !linkInfo.password) return;
+    
+    if (password === linkInfo.password) {
+      setPasswordRequired(false);
+      setPasswordError(null);
+      setLoading(true);
+      await performRedirect(linkInfo);
+    } else {
+      setPasswordError('Senha incorreta');
+    }
+  };
+
+  if (passwordRequired && linkInfo) {
+    return (
+      <PasswordProtection
+        onPasswordSubmit={handlePasswordSubmit}
+        loading={loading}
+        error={passwordError}
+        linkTitle={linkInfo.title}
+      />
+    );
+  }
 
   if (error) {
     return (

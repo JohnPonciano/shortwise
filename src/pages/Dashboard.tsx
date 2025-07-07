@@ -36,9 +36,14 @@ import {
   Upload,
   Download,
   UserPlus,
-  MoreVertical
+  MoreVertical,
+  QrCode,
+  Tags
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import AdvancedLinkForm from '@/components/LinkFeatures/AdvancedLinkForm';
+import UTMBuilder from '@/components/LinkFeatures/UTMBuilder';
+import QRCodeGenerator from '@/components/LinkFeatures/QRCodeGenerator';
 
 interface Workspace {
   id: string;
@@ -57,6 +62,12 @@ interface LinkData {
   expires_at: string | null;
   password: string | null;
   max_clicks: number | null;
+  click_count: number;
+  tags: string[];
+  ab_test_urls: string[];
+  deep_link_ios: string | null;
+  deep_link_android: string | null;
+  qr_code_enabled: boolean;
   created_at: string;
   clicks?: ClickData[];
 }
@@ -100,7 +111,7 @@ const Dashboard = () => {
   const [bulkUrls, setBulkUrls] = useState('');
   const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [invitingMember, setInvitingMember] = useState(false);
+  const [showAdvancedForm, setShowAdvancedForm] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -213,7 +224,7 @@ const Dashboard = () => {
     try {
       const { data: linksData, error: linksError } = await supabase
         .from('links')
-        .select('*')
+        .select('*, click_count')
         .eq('workspace_id', currentWorkspace.id)
         .order('created_at', { ascending: false });
 
@@ -246,7 +257,89 @@ const Dashboard = () => {
     }
   };
 
-  const createLink = async (e: React.FormEvent) => {
+  const createAdvancedLink = async (formData: any) => {
+    if (!currentWorkspace || !user) return;
+
+    setCreateLinkLoading(true);
+    
+    try {
+      // Check link limits for free users
+      if (profile?.subscription_tier === 'free' && links.length >= 5) {
+        toast({
+          title: "Limit Reached",
+          description: "Free plan allows up to 5 links. Upgrade to Pro for unlimited links.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Generate or use custom slug
+      let shortSlug = formData.custom_slug;
+      if (!shortSlug) {
+        const { data: slugData, error: slugError } = await supabase
+          .rpc('generate_short_slug');
+        
+        if (slugError) throw slugError;
+        shortSlug = slugData;
+      } else {
+        // Check if custom slug already exists
+        const { data: existingLink } = await supabase
+          .from('links')
+          .select('id')
+          .eq('short_slug', formData.custom_slug)
+          .single();
+        
+        if (existingLink) {
+          toast({
+            title: "Slug Already Taken",
+            description: "This custom slug is already in use. Please choose another.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      const linkInsert = {
+        workspace_id: currentWorkspace.id,
+        user_id: user.id,
+        title: formData.title || null,
+        original_url: formData.url,
+        short_slug: shortSlug,
+        custom_slug: !!formData.custom_slug,
+        password: formData.password_protected ? formData.password : null,
+        expires_at: formData.expires_at ? formData.expires_at.toISOString() : null,
+        max_clicks: formData.max_clicks ? parseInt(formData.max_clicks) : null,
+        tags: formData.tags || [],
+        ab_test_urls: formData.ab_test_urls || [],
+        deep_link_ios: formData.deep_link_ios || null,
+        deep_link_android: formData.deep_link_android || null,
+        qr_code_enabled: formData.qr_code_enabled || false
+      };
+
+      const { error } = await supabase
+        .from('links')
+        .insert(linkInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: "Link Created",
+        description: "Your advanced short link has been created successfully!",
+      });
+
+      setShowAdvancedForm(false);
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Error creating advanced link:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create link",
+        variant: "destructive"
+      });
+    } finally {
+      setCreateLinkLoading(false);
+    }
+  };
     e.preventDefault();
     if (!currentWorkspace) return;
 
@@ -324,7 +417,7 @@ const Dashboard = () => {
     } finally {
       setCreateLinkLoading(false);
     }
-  };
+  const createLink = async (e: React.FormEvent) => {
 
   const copyToClipboard = (slug: string) => {
     const domain = profile?.custom_domain && profile?.subscription_tier === 'pro' 
