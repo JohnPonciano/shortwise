@@ -340,6 +340,8 @@ const Dashboard = () => {
       setCreateLinkLoading(false);
     }
   };
+
+  const createLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentWorkspace) return;
 
@@ -417,7 +419,7 @@ const Dashboard = () => {
     } finally {
       setCreateLinkLoading(false);
     }
-  const createLink = async (e: React.FormEvent) => {
+  };
 
   const copyToClipboard = (slug: string) => {
     const domain = profile?.custom_domain && profile?.subscription_tier === 'pro' 
