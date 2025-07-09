@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import AdvancedLinkForm from '@/components/LinkFeatures/AdvancedLinkForm';
 import UTMBuilder from '@/components/LinkFeatures/UTMBuilder';
 import QRCodeGenerator from '@/components/LinkFeatures/QRCodeGenerator';
+import PlatformDetectionTest from '@/components/LinkFeatures/PlatformDetectionTest';
 
 interface Workspace {
   id: string;
@@ -706,9 +707,10 @@ const Dashboard = () => {
         </div>
 
         <Tabs defaultValue="links" className="space-y-6">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="deep-linking">Deep Linking</TabsTrigger>
             {profile?.subscription_tier === 'pro' && (
               <TabsTrigger value="settings">Pro Settings</TabsTrigger>
             )}
@@ -803,6 +805,22 @@ const Dashboard = () => {
                     <Button type="submit" disabled={createLinkLoading} className="flex-1">
                       {createLinkLoading ? "Creating..." : "Create Link"}
                     </Button>
+                    
+                    <Dialog open={showAdvancedForm} onOpenChange={setShowAdvancedForm}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" type="button">
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Advanced
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <AdvancedLinkForm 
+                          onSubmit={createAdvancedLink}
+                          loading={createLinkLoading}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    
                     {profile?.subscription_tier === 'pro' && (
                       <Dialog open={showBulkCreate} onOpenChange={setShowBulkCreate}>
                         <DialogTrigger asChild>
@@ -1132,6 +1150,55 @@ const Dashboard = () => {
               </div>
             )}
           </TabsContent>
+
+          {/* Deep Linking Tab */}
+          <TabsContent value="deep-linking" className="space-y-6">
+            <div className="grid gap-6">
+              <PlatformDetectionTest />
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Smartphone className="h-5 w-5" />
+                    <span>Como configurar Deep Linking</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Guia completo para configurar redirecionamento inteligente baseado na plataforma
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-medium mb-2">📱 Para Apps Mobile</h3>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p><strong>iOS:</strong> <code className="bg-muted px-1 rounded">myapp://path?param=value</code></p>
+                        <p><strong>Android:</strong> <code className="bg-muted px-1 rounded">intent://path?param=value#Intent;scheme=myapp;package=com.myapp;end</code></p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-2">🏪 Para App Stores</h3>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p><strong>App Store:</strong> <code className="bg-muted px-1 rounded">https://apps.apple.com/app/id123456789</code></p>
+                        <p><strong>Play Store:</strong> <code className="bg-muted px-1 rounded">https://play.google.com/store/apps/details?id=com.myapp</code></p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-2">🔄 Como funciona</h3>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p>1. Sistema detecta automaticamente a plataforma do usuário</p>
+                        <p>2. Tenta abrir o app nativo primeiro (se configurado)</p>
+                        <p>3. Se não conseguir, redireciona para o fallback (URL original)</p>
+                        <p>4. Desktop sempre usa a URL original</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           {/* Pro Settings Tab */}
           {profile?.subscription_tier === 'pro' && (
             <TabsContent value="settings" className="space-y-6">

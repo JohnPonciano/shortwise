@@ -21,6 +21,7 @@ const Redirect = () => {
     ab_test_urls: string[];
     deep_link_ios: string | null;
     deep_link_android: string | null;
+    platformMessage?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -41,6 +42,27 @@ const Redirect = () => {
     }
     
     return 'desktop';
+  };
+
+  const detectPlatform = (userAgent: string) => {
+    const ua = userAgent.toLowerCase();
+    
+    return {
+      isIOS: /ipad|iphone|ipod/.test(ua),
+      isAndroid: /android/.test(ua),
+      isMobile: /mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile/i.test(ua),
+      isTablet: /tablet|ipad|playbook|silk|(android(?!.*mobile))/i.test(ua),
+      isDesktop: !/mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile|tablet|ipad|playbook|silk/i.test(ua),
+      isSafari: /safari/i.test(ua) && !/chrome|chromium|edg/i.test(ua),
+      isChrome: /chrome/i.test(ua),
+      isFirefox: /firefox/i.test(ua),
+      isEdge: /edg/i.test(ua),
+      isMacOS: /macintosh|mac os x/i.test(ua),
+      isWindows: /windows/i.test(ua),
+      isLinux: /linux/i.test(ua),
+      deviceType: /tablet|ipad|playbook|silk|(android(?!.*mobile))/i.test(ua) ? 'tablet' : 
+                  /mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile/i.test(ua) ? 'mobile' : 'desktop'
+    };
   };
 
   const handleRedirect = async () => {
@@ -157,37 +179,119 @@ const Redirect = () => {
 
   const performRedirect = async (linkData: any) => {
     try {
-      // Detect platform for deep linking
+      // Detect platform for enhanced deep linking
       const userAgent = navigator.userAgent;
-      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-      const isAndroid = /Android/.test(userAgent);
+      const platform = detectPlatform(userAgent);
       
       let redirectUrl = linkData.original_url;
+      let redirectType = 'default';
       
-      // Handle A/B testing
+      // Handle A/B testing first
       if (linkData.ab_test_urls && linkData.ab_test_urls.length > 0) {
         const allUrls = [linkData.original_url, ...linkData.ab_test_urls];
         redirectUrl = allUrls[Math.floor(Math.random() * allUrls.length)];
+        redirectType = 'ab_test';
       }
       
-      // Handle deep linking
-      if (isIOS && linkData.deep_link_ios) {
+      // Handle deep linking with priority
+      if (platform.isIOS && linkData.deep_link_ios) {
         redirectUrl = linkData.deep_link_ios;
-      } else if (isAndroid && linkData.deep_link_android) {
+        redirectType = 'deep_link_ios';
+        
+        // Try to open the app first, then fallback to URL
+        if (linkData.deep_link_ios.startsWith('http')) {
+          // It's a regular URL, just redirect
+          window.location.href = redirectUrl;
+        } else {
+          // It's a deep link scheme, try to open app
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = linkData.deep_link_ios;
+          document.body.appendChild(iframe);
+          
+          // Fallback to original URL if app doesn't open
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.location.href = linkData.original_url;
+          }, 2000);
+          
+          // Track the click and return early
+          await supabase.functions.invoke('track-click', {
+            body: {
+              linkId: linkData.id,
+              userAgent,
+              deviceType: platform.deviceType,
+              referer: document.referrer || null,
+              redirectType,
+              platform: 'ios'
+            }
+          });
+          return;
+        }
+      } else if (platform.isAndroid && linkData.deep_link_android) {
         redirectUrl = linkData.deep_link_android;
+        redirectType = 'deep_link_android';
+        
+        // Try to open the app first, then fallback to URL
+        if (linkData.deep_link_android.startsWith('http')) {
+          // It's a regular URL, just redirect
+          window.location.href = redirectUrl;
+        } else {
+          // It's a deep link scheme, try to open app
+          const startTime = Date.now();
+          
+          // Try to open the app
+          window.location.href = linkData.deep_link_android;
+          
+          // Fallback to original URL if app doesn't open within 2 seconds
+          setTimeout(() => {
+            if (Date.now() - startTime < 2100) {
+              window.location.href = linkData.original_url;
+            }
+          }, 2000);
+          
+          // Track the click and return early
+          await supabase.functions.invoke('track-click', {
+            body: {
+              linkId: linkData.id,
+              userAgent,
+              deviceType: platform.deviceType,
+              referer: document.referrer || null,
+              redirectType,
+              platform: 'android'
+            }
+          });
+          return;
+        }
       }
 
-      // Track the click
-      const deviceType = detectDevice(userAgent);
-      
+      // Track the click with enhanced platform detection
       await supabase.functions.invoke('track-click', {
         body: {
           linkId: linkData.id,
           userAgent,
-          deviceType,
-          referer: document.referrer || null
+          deviceType: platform.deviceType,
+          referer: document.referrer || null,
+          redirectType,
+          platform: platform.isIOS ? 'ios' : platform.isAndroid ? 'android' : 'other',
+          browser: platform.isChrome ? 'chrome' : 
+                  platform.isSafari ? 'safari' : 
+                  platform.isFirefox ? 'firefox' : 
+                  platform.isEdge ? 'edge' : 'other',
+          os: platform.isMacOS ? 'macos' : 
+              platform.isWindows ? 'windows' : 
+              platform.isLinux ? 'linux' : 'other'
         }
       });
+
+      // Show platform-specific message
+      const platformMessage = platform.isIOS ? 'Redirecionando para iOS...' :
+                            platform.isAndroid ? 'Redirecionando para Android...' :
+                            platform.isMobile ? 'Redirecionando para mobile...' :
+                            'Redirecionando...';
+      
+      // Update the UI to show platform-specific message
+      setLinkInfo(prev => prev ? { ...prev, platformMessage } : null);
 
       // Redirect after a brief moment
       setTimeout(() => {
@@ -251,7 +355,9 @@ const Redirect = () => {
           <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
         </div>
         
-        <h1 className="text-2xl font-bold mb-4">Redirecting...</h1>
+        <h1 className="text-2xl font-bold mb-4">
+          {linkInfo?.platformMessage || 'Redirecting...'}
+        </h1>
         
         {linkInfo && (
           <div className="space-y-4">
@@ -261,6 +367,16 @@ const Redirect = () => {
             <p className="text-sm text-muted-foreground break-all">
               Taking you to: {linkInfo.original_url}
             </p>
+            {linkInfo.deep_link_ios && (
+              <p className="text-xs text-muted-foreground">
+                📱 Deep link configured for iOS
+              </p>
+            )}
+            {linkInfo.deep_link_android && (
+              <p className="text-xs text-muted-foreground">
+                🤖 Deep link configured for Android
+              </p>
+            )}
           </div>
         )}
         

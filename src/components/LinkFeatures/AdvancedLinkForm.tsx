@@ -277,30 +277,67 @@ const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading }
 
           {/* Deep Linking */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium flex items-center space-x-2">
-              <Smartphone className="h-5 w-5" />
-              <span>Deep Linking</span>
-            </h3>
+            <div>
+              <h3 className="text-lg font-medium flex items-center space-x-2">
+                <Smartphone className="h-5 w-5" />
+                <span>Deep Linking Inteligente</span>
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Redirecione usuarios para apps específicos baseado na plataforma detectada
+              </p>
+            </div>
             
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="deep_link_ios">Deep Link iOS</Label>
+                <Label htmlFor="deep_link_ios">
+                  📱 Deep Link iOS
+                  <span className="text-xs text-muted-foreground ml-1">(iPhone/iPad)</span>
+                </Label>
                 <Input
                   id="deep_link_ios"
                   placeholder="myapp://open?content=xyz"
                   value={formData.deep_link_ios}
                   onChange={(e) => setFormData(prev => ({ ...prev, deep_link_ios: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Exemplo: <code className="bg-muted px-1 rounded">myapp://</code> ou URL da App Store
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="deep_link_android">Deep Link Android</Label>
+                <Label htmlFor="deep_link_android">
+                  🤖 Deep Link Android
+                  <span className="text-xs text-muted-foreground ml-1">(Android)</span>
+                </Label>
                 <Input
                   id="deep_link_android"
                   placeholder="intent://open?content=xyz#Intent;scheme=myapp;end"
                   value={formData.deep_link_android}
                   onChange={(e) => setFormData(prev => ({ ...prev, deep_link_android: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Exemplo: <code className="bg-muted px-1 rounded">intent://</code> ou URL do Play Store
+                </p>
               </div>
+            </div>
+
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <h4 className="font-medium mb-2">📋 Como funciona:</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• <strong>iOS:</strong> Tenta abrir o app, se não conseguir vai para a URL original</li>
+                <li>• <strong>Android:</strong> Tenta abrir o app, se não conseguir vai para a URL original</li>
+                <li>• <strong>Desktop:</strong> Sempre usa a URL original</li>
+                <li>• <strong>Fallback:</strong> Se não detectar a plataforma, usa a URL original</li>
+              </ul>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
+              <h4 className="font-medium mb-2">💡 Dicas de configuração:</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Para deep links de apps: <code className="bg-muted px-1 rounded">myapp://path</code></li>
+                <li>• Para App Store: <code className="bg-muted px-1 rounded">https://apps.apple.com/app/id123456</code></li>
+                <li>• Para Play Store: <code className="bg-muted px-1 rounded">https://play.google.com/store/apps/details?id=com.app</code></li>
+                <li>• Para testar: Use links HTTP normais primeiro</li>
+              </ul>
             </div>
           </div>
 
