@@ -592,6 +592,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     await signOut();
+    // Redirect will be handled by AuthContext state change
   };
 
   if (loading) {
@@ -600,6 +601,12 @@ const Dashboard = () => {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Redirect to auth if not authenticated
+  if (!user) {
+    window.location.href = '/auth';
+    return null;
   }
 
   const totalClicks = links.reduce((sum, link) => sum + (link.clicks?.length || 0), 0);
