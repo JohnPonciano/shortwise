@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -12,6 +11,7 @@ import { SimpleLinkForm } from '@/components/SimpleLinkForm';
 import AdvancedLinkForm from '@/components/LinkFeatures/AdvancedLinkForm';
 import PlatformDetectionTest from '@/components/LinkFeatures/PlatformDetectionTest';
 import QRCodeGenerator from '@/components/LinkFeatures/QRCodeGenerator';
+import LinkAnalytics from '@/components/Analytics/LinkAnalytics';
 import { supabase } from '@/integrations/supabase/client';
 import { LoadingState } from '@/components/LoadingState';
 import { useToast } from '@/hooks/use-toast';
@@ -274,19 +274,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="analytics">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics</CardTitle>
-                <CardDescription>
-                  Acompanhe o desempenho dos seus links
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Analytics em desenvolvimento...
-                </p>
-              </CardContent>
-            </Card>
+            <LinkAnalytics />
           </TabsContent>
 
           <TabsContent value="deep-linking">
