@@ -1,87 +1,93 @@
-
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { LoadingState } from '@/components/LoadingState';
-import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, Lock } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+
+interface PlatformInfo {
+  isMobile: boolean;
+  isTablet: boolean;
+  isIOS: boolean;
+  isAndroid: boolean;
+  userAgent: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet' | 'unknown';
+  browser: string;
+  os: string;
+  timezone: string;
+}
 
 export default function Redirect() {
-  const { slug } = useParams();
-  const [link, setLink] = useState<any>(null);
+  const { slug } = useParams<{ slug: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   useEffect(() => {
-    if (slug) {
-      handleRedirect();
+    if (!slug) {
+      setError('Slug não encontrado');
+      setLoading(false);
+      return;
     }
+
+    handleRedirect();
   }, [slug]);
 
-  const detectPlatform = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-    
-    let deviceType = 'desktop';
+  const detectPlatform = (): PlatformInfo => {
+    const userAgent = navigator.userAgent;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    const isTablet = /iPad|Android.*?(?=.*Tablet)/i.test(userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
+
+    let deviceType: 'desktop' | 'mobile' | 'tablet' | 'unknown' = 'desktop';
+    if (isTablet) deviceType = 'tablet';
+    else if (isMobile) deviceType = 'mobile';
+
+    // Browser detection
     let browser = 'unknown';
+    if (userAgent.includes('Chrome')) browser = 'chrome';
+    else if (userAgent.includes('Firefox')) browser = 'firefox';
+    else if (userAgent.includes('Safari')) browser = 'safari';
+    else if (userAgent.includes('Edge')) browser = 'edge';
+
+    // OS detection
     let os = 'unknown';
+    if (isIOS) os = 'ios';
+    else if (isAndroid) os = 'android';
+    else if (userAgent.includes('Windows')) os = 'windows';
+    else if (userAgent.includes('Mac')) os = 'macos';
+    else if (userAgent.includes('Linux')) os = 'linux';
 
-    // Detect device type
-    if (/iphone|ipod/.test(userAgent)) {
-      deviceType = 'mobile';
-      os = 'iOS';
-    } else if (/ipad/.test(userAgent)) {
-      deviceType = 'tablet';
-      os = 'iOS';
-    } else if (/android/.test(userAgent)) {
-      deviceType = isMobile ? 'mobile' : 'tablet';
-      os = 'Android';
-    } else if (isMobile) {
-      deviceType = 'mobile';
-    }
-
-    // Detect browser
-    if (/chrome/.test(userAgent)) browser = 'Chrome';
-    else if (/firefox/.test(userAgent)) browser = 'Firefox';
-    else if (/safari/.test(userAgent)) browser = 'Safari';
-    else if (/edge/.test(userAgent)) browser = 'Edge';
-
-    // Detect OS for desktop
-    if (deviceType === 'desktop') {
-      if (/windows/.test(userAgent)) os = 'Windows';
-      else if (/macintosh|mac os x/.test(userAgent)) os = 'macOS';
-      else if (/linux/.test(userAgent)) os = 'Linux';
-    }
-
-    return { deviceType, browser, os };
+    return {
+      isMobile,
+      isTablet,
+      isIOS,
+      isAndroid,
+      userAgent,
+      deviceType,
+      browser,
+      os,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
   };
 
-  const trackClick = async (linkData: any) => {
+  const trackClick = async (linkId: string, platformInfo: PlatformInfo) => {
     try {
-      const platform = detectPlatform();
-      
       const clickData = {
-        link_id: linkData.id,
-        ip_address: null,
-        device_type: platform.deviceType,
-        user_agent: navigator.userAgent,
+        link_id: linkId,
+        ip_address: null, // Will be handled by the edge function
+        device_type: platformInfo.deviceType,
+        user_agent: platformInfo.userAgent,
         referer: document.referrer || null,
-        browser: platform.browser,
-        os: platform.os,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        browser: platformInfo.browser,
+        os: platformInfo.os,
+        timezone: platformInfo.timezone,
       };
 
-      console.log('Tracking click with data:', clickData);
-
-      await supabase
+      const { error } = await supabase
         .from('clicks')
         .insert([clickData]);
 
+      if (error) {
+        console.error('Error tracking click:', error);
+      }
     } catch (error) {
       console.error('Error tracking click:', error);
     }
@@ -89,206 +95,110 @@ export default function Redirect() {
 
   const handleRedirect = async () => {
     try {
-      console.log('Redirect attempt for slug:', slug);
-      console.log('Current domain:', window.location.hostname);
-      
-      const currentDomain = window.location.hostname;
-      const isCustomDomain = !currentDomain.includes('lovableproject.com') && 
-                            !currentDomain.includes('localhost') && 
-                            currentDomain !== '127.0.0.1';
+      setLoading(true);
 
-      console.log('Is custom domain:', isCustomDomain);
-
-      let query = supabase
+      // Get link data
+      const { data: link, error } = await supabase
         .from('links')
-        .select(`
-          id,
-          original_url,
-          title,
-          is_active,
-          password,
-          expires_at,
-          max_clicks,
-          click_count,
-          ab_test_urls,
-          deep_link_ios,
-          deep_link_android
-        `)
+        .select('*')
         .eq('short_slug', slug)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .single();
 
-      console.log('Querying for standard domain...');
-
-      const { data: linkData, error: linkError } = await query.maybeSingle();
-
-      console.log('Query result:', { linkData, linkError });
-
-      if (linkError) {
-        console.error('Database error:', linkError);
-        throw new Error('Erro ao buscar link');
-      }
-
-      if (!linkData) {
-        console.log('No link data found for slug:', slug);
-        setError('Link não encontrado ou expirado');
-        setLoading(false);
+      if (error || !link) {
+        setError('Link não encontrado ou inativo');
         return;
       }
 
-      // Check if link has expired (only if expires_at is set)
-      if (linkData.expires_at) {
-        const now = new Date();
-        const expiresAt = new Date(linkData.expires_at);
-        
-        console.log('Checking expiration:', {
-          now: now.toISOString(),
-          expiresAt: expiresAt.toISOString(),
-          isExpired: now > expiresAt
-        });
-
-        if (now > expiresAt) {
-          setError('Este link expirou');
-          setLoading(false);
-          return;
-        }
+      // Check if link has expired
+      if (link.expires_at && new Date(link.expires_at) < new Date()) {
+        setError('Este link expirou');
+        return;
       }
 
-      // Check max clicks (only if max_clicks is set)
-      if (linkData.max_clicks && linkData.click_count >= linkData.max_clicks) {
+      // Check max clicks limit
+      if (link.max_clicks && link.click_count >= link.max_clicks) {
         setError('Este link atingiu o limite máximo de cliques');
-        setLoading(false);
         return;
       }
 
-      // Check password protection
-      if (linkData.password) {
-        if (!password) {
-          setShowPasswordForm(true);
-          setLink(linkData);
-          setLoading(false);
-          return;
-        }
-        
-        if (password !== linkData.password) {
-          setError('Senha incorreta');
-          return;
-        }
+      // Detect platform
+      const platformInfo = detectPlatform();
+
+      // Track the click
+      await trackClick(link.id, platformInfo);
+
+      // Update click count
+      const { error: updateError } = await supabase
+        .from('links')
+        .update({ 
+          click_count: (link.click_count || 0) + 1 
+        })
+        .eq('id', link.id);
+
+      if (updateError) {
+        console.error('Error updating click count:', updateError);
       }
 
-      setLink(linkData);
-      
-      // Track the click
-      await trackClick(linkData);
+      // Determine redirect URL based on platform
+      let redirectUrl = link.original_url;
 
-      // Handle platform-specific redirects
-      const platform = detectPlatform();
-      let redirectUrl = linkData.original_url;
+      if (platformInfo.isIOS && link.deep_link_ios) {
+        redirectUrl = link.deep_link_ios;
+      } else if (platformInfo.isAndroid && link.deep_link_android) {
+        redirectUrl = link.deep_link_android;
+      }
 
-      // Check for deep links based on platform
-      if (platform.os === 'iOS' && linkData.deep_link_ios) {
-        console.log('Redirecting to iOS deep link:', linkData.deep_link_ios);
-        redirectUrl = linkData.deep_link_ios;
-      } else if (platform.os === 'Android' && linkData.deep_link_android) {
-        console.log('Redirecting to Android deep link:', linkData.deep_link_android);
-        redirectUrl = linkData.deep_link_android;
+      // Add UTM parameters if they exist
+      if (link.utm_source || link.utm_medium || link.utm_campaign || link.utm_term || link.utm_content) {
+        const url = new URL(redirectUrl);
+        if (link.utm_source) url.searchParams.set('utm_source', link.utm_source);
+        if (link.utm_medium) url.searchParams.set('utm_medium', link.utm_medium);
+        if (link.utm_campaign) url.searchParams.set('utm_campaign', link.utm_campaign);
+        if (link.utm_term) url.searchParams.set('utm_term', link.utm_term);
+        if (link.utm_content) url.searchParams.set('utm_content', link.utm_content);
+        redirectUrl = url.toString();
       }
 
       // Handle A/B testing
-      if (linkData.ab_test_urls && linkData.ab_test_urls.length > 0) {
-        const allUrls = [linkData.original_url, ...linkData.ab_test_urls];
-        const randomIndex = Math.floor(Math.random() * allUrls.length);
-        redirectUrl = allUrls[randomIndex];
-        console.log('A/B testing redirect to:', redirectUrl);
+      if (link.ab_test_urls && link.ab_test_urls.length > 0) {
+        const allUrls = [redirectUrl, ...link.ab_test_urls];
+        const weights = link.ab_test_weights || allUrls.map(() => 1);
+        
+        // Weighted random selection
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        const random = Math.random() * totalWeight;
+        
+        let currentWeight = 0;
+        for (let i = 0; i < allUrls.length; i++) {
+          currentWeight += weights[i] || 1;
+          if (random <= currentWeight) {
+            redirectUrl = allUrls[i];
+            break;
+          }
+        }
       }
-
-      console.log('Final redirect URL:', redirectUrl);
 
       // Redirect
       window.location.href = redirectUrl;
 
     } catch (error) {
       console.error('Redirect error:', error);
-      setError('Erro ao processar redirecionamento');
+      setError('Erro interno do servidor');
+    } finally {
       setLoading(false);
     }
   };
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    await handleRedirect();
-  };
-
-  if (loading) {
-    return <LoadingState />;
-  }
-
-  if (showPasswordForm) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="text-center mb-6">
-              <Lock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h1 className="text-xl font-semibold">Link Protegido</h1>
-              <p className="text-muted-foreground mt-2">
-                Este link requer uma senha para acesso
-              </p>
-            </div>
-
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Digite a senha"
-                  required
-                />
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
-                </div>
-              )}
-
-              <Button type="submit" className="w-full">
-                Acessar Link
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto text-destructive mb-4" />
-            <h1 className="text-xl font-semibold mb-2">Ops!</h1>
-            <p className="text-muted-foreground">{error}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // This should rarely be shown as redirection happens quickly
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-6 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Redirecionando...</p>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col items-center justify-center h-screen bg-background">
+      {loading && <p>Redirecionando...</p>}
+      {error && (
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive mb-4">Erro ao redirecionar</h1>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

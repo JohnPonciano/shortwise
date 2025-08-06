@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,13 +11,21 @@ import { CalendarIcon, Clock, Lock, Smartphone, Tags, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface AdvancedLinkFormProps {
   onSubmit: (data: any) => void;
   loading?: boolean;
+  initialData?: any;
 }
 
-const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading }) => {
+const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading, initialData }) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  
   const [formData, setFormData] = useState({
     url: '',
     title: '',
@@ -35,6 +43,25 @@ const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading }
   
   const [newTag, setNewTag] = useState('');
   const [newABUrl, setNewABUrl] = useState('');
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        url: initialData.original_url || '',
+        title: initialData.title || '',
+        custom_slug: initialData.custom_slug ? initialData.short_slug : '',
+        password: initialData.password || '',
+        password_protected: initialData.password_protected || false,
+        expires_at: initialData.expires_at ? new Date(initialData.expires_at) : null,
+        max_clicks: initialData.max_clicks ? initialData.max_clicks.toString() : '',
+        tags: initialData.tags || [],
+        ab_test_urls: initialData.ab_test_urls || [],
+        deep_link_ios: initialData.deep_link_ios || '',
+        deep_link_android: initialData.deep_link_android || '',
+        qr_code_enabled: initialData.qr_code_enabled || false,
+      });
+    }
+  }, [initialData]);
 
   const addTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
@@ -70,9 +97,82 @@ const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading }
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    if (!user) {
+      toast({
+        title: 'Erro',
+        description: 'Usuário não autenticado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Get user's default workspace
+      const { data: workspaces } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', user.id)
+        .limit(1);
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error('Nenhum workspace encontrado');
+      }
+
+      const linkData = {
+        original_url: formData.url,
+        title: formData.title || null,
+        user_id: user.id,
+        workspace_id: workspaces[0].id,
+        short_slug: formData.custom_slug || undefined,
+        custom_slug: !!formData.custom_slug,
+        password_protected: formData.password_protected,
+        password: formData.password_protected ? formData.password : null,
+        expires_at: formData.expires_at ? formData.expires_at.toISOString() : null,
+        max_clicks: formData.max_clicks ? parseInt(formData.max_clicks) : null,
+        tags: formData.tags,
+        ab_test_urls: formData.ab_test_urls,
+        deep_link_ios: formData.deep_link_ios || null,
+        deep_link_android: formData.deep_link_android || null,
+        qr_code_enabled: formData.qr_code_enabled,
+      };
+
+      if (initialData) {
+        // Update existing link
+        const { data: link, error } = await supabase
+          .from('links')
+          .update(linkData)
+          .eq('id', initialData.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        onSubmit(link);
+      } else {
+        // Create new link
+        const { data: link, error } = await supabase
+          .from('links')
+          .insert([linkData])
+          .select()
+          .single();
+
+        if (error) throw error;
+        onSubmit(link);
+      }
+    } catch (error: any) {
+      console.error('Error saving link:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao salvar o link',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -357,8 +457,8 @@ const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading }
             />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Criando..." : "Criar Link Avançado"}
+          <Button type="submit" disabled={submitting} className="w-full">
+            {submitting ? "Salvando..." : initialData ? "Atualizar Link" : "Criar Link Avançado"}
           </Button>
         </form>
       </CardContent>

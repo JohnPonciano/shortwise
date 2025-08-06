@@ -1,37 +1,70 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Link, Settings, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useFormValidation } from '@/hooks/useFormValidation';
-import { linkSchema } from '@/lib/validations';
-import { useAsync } from '@/hooks/useAsync';
-import { supabase } from '@/integrations/supabase/client';
+import { ChevronDown, Link, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface SimpleLinkFormProps {
   onSuccess?: (link: any) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
-export function SimpleLinkForm({ onSuccess, onCancel }: SimpleLinkFormProps) {
+export function SimpleLinkForm({ onSuccess, onCancel, initialData }: SimpleLinkFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [enablePassword, setEnablePassword] = useState(false);
-  const [enableExpiration, setEnableExpiration] = useState(false);
   
-  const { execute: createLink, loading } = useAsync();
+  const [formData, setFormData] = useState({
+    original_url: '',
+    title: '',
+    custom_slug: '',
+    password: '',
+    password_protected: false,
+    expires_at: '',
+    enableExpiration: false,
+    qr_code_enabled: true,
+  });
 
-  const { form, handleSubmit, errors } = useFormValidation(linkSchema, {
-    onSuccess: async (data) => {
-      if (!user) throw new Error('Usuário não autenticado');
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        original_url: initialData.original_url || '',
+        title: initialData.title || '',
+        custom_slug: initialData.custom_slug ? initialData.short_slug : '',
+        password: initialData.password || '',
+        password_protected: initialData.password_protected || false,
+        expires_at: initialData.expires_at ? new Date(initialData.expires_at).toISOString().slice(0, 16) : '',
+        enableExpiration: !!initialData.expires_at,
+        qr_code_enabled: initialData.qr_code_enabled || false,
+      });
+      setShowAdvanced(true);
+    }
+  }, [initialData]);
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: 'Erro',
+        description: 'Usuário não autenticado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
       // Get user's default workspace
       const { data: workspaces } = await supabase
         .from('workspaces')
@@ -43,206 +76,193 @@ export function SimpleLinkForm({ onSuccess, onCancel }: SimpleLinkFormProps) {
         throw new Error('Nenhum workspace encontrado');
       }
 
-      // Prepare link data - only include fields that have values
-      const linkData: any = {
-        original_url: data.original_url,
+      const linkData = {
+        original_url: formData.original_url,
+        title: formData.title || null,
         user_id: user.id,
         workspace_id: workspaces[0].id,
-        is_active: true,
+        short_slug: formData.custom_slug || undefined,
+        custom_slug: !!formData.custom_slug,
+        password_protected: formData.password_protected,
+        password: formData.password_protected ? formData.password : null,
+        expires_at: formData.enableExpiration && formData.expires_at ? formData.expires_at : null,
+        qr_code_enabled: formData.qr_code_enabled,
       };
 
-      // Only add optional fields if they have values
-      if (data.title?.trim()) {
-        linkData.title = data.title.trim();
-      }
+      if (initialData) {
+        // Update existing link
+        const { data: link, error } = await supabase
+          .from('links')
+          .update(linkData)
+          .eq('id', initialData.id)
+          .select()
+          .single();
 
-      if (data.custom_slug?.trim()) {
-        linkData.short_slug = data.custom_slug.trim();
-        linkData.custom_slug = true;
+        if (error) throw error;
+        onSuccess?.(link);
       } else {
-        linkData.custom_slug = false;
-      }
-
-      // Only add password if enabled and provided
-      if (enablePassword && data.password?.trim()) {
-        linkData.password_protected = true;
-        linkData.password = data.password.trim();
-      } else {
-        linkData.password_protected = false;
-      }
-
-      // Only add expiration if enabled and provided
-      if (enableExpiration && data.expires_at) {
-        linkData.expires_at = data.expires_at;
-      }
-
-      // Only add max_clicks if provided
-      if (data.max_clicks && data.max_clicks > 0) {
-        linkData.max_clicks = data.max_clicks;
-      }
-
-      console.log('Creating link with data:', linkData);
-
-      const newLink = await createLink(async () => {
+        // Create new link
         const { data: link, error } = await supabase
           .from('links')
           .insert([linkData])
           .select()
           .single();
 
-        if (error) {
-          console.error('Supabase error:', error);
-          throw error;
-        }
-        return link;
-      });
-
+        if (error) throw error;
+        onSuccess?.(link);
+      }
+    } catch (error: any) {
+      console.error('Error saving link:', error);
       toast({
-        title: 'Sucesso!',
-        description: 'Link criado com sucesso',
+        title: 'Erro',
+        description: error.message || 'Erro ao salvar o link',
+        variant: 'destructive',
       });
-
-      onSuccess?.(newLink);
-    },
-  });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Link className="w-5 h-5" />
-          Criar novo link
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* URL Original */}
-          <div className="space-y-2">
-            <Label htmlFor="original_url">URL Original *</Label>
-            <Input
-              id="original_url"
-              placeholder="https://exemplo.com"
-              {...form.register('original_url')}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* URL Original */}
+      <div className="space-y-2">
+        <Label htmlFor="original_url">URL Original *</Label>
+        <Input
+          id="original_url"
+          type="url"
+          placeholder="https://exemplo.com/minha-pagina"
+          value={formData.original_url}
+          onChange={(e) => setFormData(prev => ({ ...prev, original_url: e.target.value }))}
+          required
+        />
+      </div>
+
+      {/* Título */}
+      <div className="space-y-2">
+        <Label htmlFor="title">Título (opcional)</Label>
+        <Input
+          id="title"
+          placeholder="Meu Link Incrível"
+          value={formData.title}
+          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+        />
+      </div>
+
+      {/* Slug personalizado */}
+      <div className="space-y-2">
+        <Label htmlFor="custom_slug">Slug personalizado (opcional)</Label>
+        <Input
+          id="custom_slug"
+          placeholder="meu-link-personalizado"
+          value={formData.custom_slug}
+          onChange={(e) => setFormData(prev => ({ ...prev, custom_slug: e.target.value }))}
+        />
+      </div>
+
+      {/* Configurações avançadas */}
+      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" type="button" className="w-full justify-between">
+            <span className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Configurações avançadas
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-4">
+          {/* QR Code */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="qr_code_enabled">Gerar QR Code</Label>
+              <p className="text-sm text-muted-foreground">
+                Permite visualizar e baixar o QR Code do link
+              </p>
+            </div>
+            <Switch
+              id="qr_code_enabled"
+              checked={formData.qr_code_enabled}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, qr_code_enabled: checked }))}
             />
-            {errors.original_url && (
-              <p className="text-sm text-destructive">{errors.original_url.message}</p>
-            )}
           </div>
 
-          {/* Título */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Título (opcional)</Label>
-            <Input
-              id="title"
-              placeholder="Título do link"
-              {...form.register('title')}
+          {/* Proteção por senha */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="password_protected">Proteger com senha</Label>
+              <p className="text-sm text-muted-foreground">
+                Exige senha para acessar o link
+              </p>
+            </div>
+            <Switch
+              id="password_protected"
+              checked={formData.password_protected}
+              onCheckedChange={(checked) => setFormData(prev => ({ 
+                ...prev, 
+                password_protected: checked,
+                password: checked ? prev.password : ''
+              }))}
             />
-            {errors.title && (
-              <p className="text-sm text-destructive">{errors.title.message}</p>
-            )}
           </div>
 
-          {/* Slug personalizado */}
-          <div className="space-y-2">
-            <Label htmlFor="custom_slug">Slug personalizado (opcional)</Label>
-            <Input
-              id="custom_slug"
-              placeholder="meu-link-personalizado"
-              {...form.register('custom_slug')}
+          {formData.password_protected && (
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Digite uma senha"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+          )}
+
+          {/* Data de expiração */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="enableExpiration">Data de expiração</Label>
+              <p className="text-sm text-muted-foreground">
+                Link expira automaticamente
+              </p>
+            </div>
+            <Switch
+              id="enableExpiration"
+              checked={formData.enableExpiration}
+              onCheckedChange={(checked) => setFormData(prev => ({ 
+                ...prev, 
+                enableExpiration: checked,
+                expires_at: checked ? prev.expires_at : ''
+              }))}
             />
-            {errors.custom_slug && (
-              <p className="text-sm text-destructive">{errors.custom_slug.message}</p>
-            )}
           </div>
 
-          {/* Configurações avançadas */}
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" type="button" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Configurações avançadas
-                </span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-4">
-              {/* Proteção por senha */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="enable-password">Proteger com senha</Label>
-                  <Switch
-                    id="enable-password"
-                    checked={enablePassword}
-                    onCheckedChange={setEnablePassword}
-                  />
-                </div>
-                {enablePassword && (
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="Digite a senha"
-                      type="password"
-                      {...form.register('password')}
-                    />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">{errors.password.message}</p>
-                    )}
-                  </div>
-                )}
-              </div>
+          {formData.enableExpiration && (
+            <div className="space-y-2">
+              <Label htmlFor="expires_at">Data e hora de expiração</Label>
+              <Input
+                id="expires_at"
+                type="datetime-local"
+                value={formData.expires_at}
+                onChange={(e) => setFormData(prev => ({ ...prev, expires_at: e.target.value }))}
+              />
+            </div>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
-              {/* Data de expiração */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="enable-expiration">Data de expiração</Label>
-                  <Switch
-                    id="enable-expiration"
-                    checked={enableExpiration}
-                    onCheckedChange={setEnableExpiration}
-                  />
-                </div>
-                {enableExpiration && (
-                  <div className="space-y-2">
-                    <Input
-                      type="datetime-local"
-                      {...form.register('expires_at')}
-                    />
-                    {errors.expires_at && (
-                      <p className="text-sm text-destructive">{errors.expires_at.message}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Limite de cliques */}
-              <div className="space-y-2">
-                <Label htmlFor="max_clicks">Máximo de cliques (opcional)</Label>
-                <Input
-                  id="max_clicks"
-                  type="number"
-                  placeholder="Ex: 100"
-                  {...form.register('max_clicks', { valueAsNumber: true })}
-                />
-                {errors.max_clicks && (
-                  <p className="text-sm text-destructive">{errors.max_clicks.message}</p>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Botões de ação */}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Criando...' : 'Criar Link'}
-            </Button>
-            {onCancel && (
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancelar
-              </Button>
-            )}
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      {/* Botões */}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={loading} className="flex-1">
+          {loading ? 'Salvando...' : initialData ? 'Atualizar Link' : 'Criar Link'}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+        )}
+      </div>
+    </form>
   );
 }
