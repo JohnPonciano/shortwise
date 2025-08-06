@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { Calendar, Globe, Smartphone, MousePointer, TrendingUp } from 'lucide-react';
+import { Calendar, Globe, Smartphone, MousePointer, TrendingUp, Share } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingState } from '@/components/LoadingState';
@@ -19,6 +19,7 @@ interface AnalyticsData {
   clicksByCountry: Array<{ country: string; clicks: number }>;
   clicksByDevice: Array<{ device: string; clicks: number }>;
   clicksByBrowser: Array<{ browser: string; clicks: number }>;
+  clicksBySource: Array<{ source: string; clicks: number }>;
   topLinks: Array<{ 
     title: string; 
     short_slug: string; 
@@ -70,6 +71,7 @@ export default function LinkAnalytics() {
           clicksByCountry: [],
           clicksByDevice: [],
           clicksByBrowser: [],
+          clicksBySource: [],
           topLinks: []
         });
         setLoading(false);
@@ -131,6 +133,17 @@ export default function LinkAnalytics() {
         .sort((a, b) => b.clicks - a.clicks)
         .slice(0, 5);
 
+      // Clicks by source platform
+      const sourceMap = new Map();
+      clicks?.forEach(click => {
+        const source = click.source_platform || 'Direct';
+        sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+      });
+      const clicksBySource = Array.from(sourceMap.entries())
+        .map(([source, clicks]) => ({ source, clicks }))
+        .sort((a, b) => b.clicks - a.clicks)
+        .slice(0, 10);
+
       // Top links
       const topLinks = links
         ?.sort((a, b) => (b.click_count || 0) - (a.click_count || 0))
@@ -151,6 +164,7 @@ export default function LinkAnalytics() {
         clicksByCountry,
         clicksByDevice,
         clicksByBrowser,
+        clicksBySource,
         topLinks
       });
 
@@ -312,6 +326,34 @@ export default function LinkAnalytics() {
           </CardContent>
         </Card>
 
+        {/* Source platforms */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Share className="h-5 w-5" />
+              <span>Origem dos Acessos</span>
+            </CardTitle>
+            <CardDescription>
+              De onde vieram os cliques nos seus links
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {analyticsData.clicksBySource.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum dado de origem disponível</p>
+            ) : (
+              <ChartContainer config={chartConfig}>
+                <BarChart data={analyticsData.clicksBySource} layout="horizontal">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="source" type="category" width={100} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="clicks" fill="hsl(var(--chart-2))" />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Device breakdown */}
         <Card>
           <CardHeader>
@@ -351,12 +393,15 @@ export default function LinkAnalytics() {
                 <XAxis type="number" />
                 <YAxis dataKey="country" type="category" width={80} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="clicks" fill="hsl(var(--chart-2))" />
+                <Bar dataKey="clicks" fill="hsl(var(--chart-3))" />
               </BarChart>
             </ChartContainer>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Additional info cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top links */}
         <Card>
           <CardHeader>
@@ -384,27 +429,29 @@ export default function LinkAnalytics() {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Browser stats */}
-      {analyticsData.clicksByBrowser.length > 0 && (
+        {/* Browser stats */}
         <Card>
           <CardHeader>
             <CardTitle>Navegadores</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig}>
-              <BarChart data={analyticsData.clicksByBrowser}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="browser" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="clicks" fill="hsl(var(--chart-3))" />
-              </BarChart>
-            </ChartContainer>
+            {analyticsData.clicksByBrowser.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum dado de navegador disponível</p>
+            ) : (
+              <ChartContainer config={chartConfig}>
+                <BarChart data={analyticsData.clicksByBrowser}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="browser" />
+                  <YAxis />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="clicks" fill="hsl(var(--chart-4))" />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
     </div>
   );
 }
