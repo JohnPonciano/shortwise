@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,13 +86,17 @@ export default function TeamCollaboration() {
         .from('workspace_members')
         .select(`
           *,
-          profiles!inner(full_name, email, avatar_url)
+          profiles(full_name, email, avatar_url)
         `)
         .eq('workspace_id', selectedWorkspace);
 
       if (error) throw error;
-      setTeamMembers(data || []);
+      
+      // Filter out any members where profiles data might be null
+      const validMembers = (data || []).filter(member => member.profiles);
+      setTeamMembers(validMembers);
     } catch (error: any) {
+      console.error('Error loading team members:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os membros da equipe',

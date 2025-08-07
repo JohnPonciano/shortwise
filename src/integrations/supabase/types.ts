@@ -246,6 +246,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_workspace_members_user_id"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "workspace_members_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
