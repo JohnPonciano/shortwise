@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, User, Building, Users, Shield, Bell, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AccountSettings from '@/components/Settings/AccountSettings';
-import WorkspaceSettings from '@/components/Settings/WorkspaceSettings';
-import TeamCollaboration from '@/components/Settings/TeamCollaboration';
-import RolePermissions from '@/components/Settings/RolePermissions';
+import WorkspaceManagement from '@/components/Settings/WorkspaceManagement';
+import TeamManagement from '@/components/Settings/TeamManagement';
+import AdvancedPermissions from '@/components/Settings/AdvancedPermissions';
 import SecuritySettings from '@/components/Settings/SecuritySettings';
 import NotificationSettings from '@/components/Settings/NotificationSettings';
 
@@ -69,15 +69,15 @@ export default function Settings() {
             </TabsContent>
 
             <TabsContent value="workspaces">
-              <WorkspaceSettings />
+              <WorkspaceManagement />
             </TabsContent>
 
             <TabsContent value="team">
-              <TeamCollaboration />
+              <TeamManagement />
             </TabsContent>
 
             <TabsContent value="permissions">
-              <RolePermissions />
+              <AdvancedPermissions />
             </TabsContent>
 
             <TabsContent value="security">
