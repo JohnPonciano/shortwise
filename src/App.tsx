@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 import Redirect from "./pages/Redirect";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +34,11 @@ const App = () => (
               <Route path="/dashboard" element={
                 <ProtectedRoute requireAuth={true}>
                   <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute requireAuth={true}>
+                  <Settings />
                 </ProtectedRoute>
               } />
               <Route path="/:slug" element={<Redirect />} />
