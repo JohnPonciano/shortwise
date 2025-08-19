@@ -117,8 +117,8 @@ export default function AccountSettings() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="custom_domain">Domínio Personalizado</Label>
+       {/* <div className="space-y-2">
+            <Label htmlFor="custom_domain">Domínio Personalizado</Label>
               <Input
                 id="custom_domain"
                 value={formData.custom_domain}
@@ -128,7 +128,8 @@ export default function AccountSettings() {
               <p className="text-sm text-muted-foreground">
                 Configure seu próprio domínio para os links encurtados
               </p>
-            </div>
+         </div> */}
+
 
             <Button type="submit" disabled={loading}>
               {loading ? 'Salvando...' : 'Salvar Alterações'}
