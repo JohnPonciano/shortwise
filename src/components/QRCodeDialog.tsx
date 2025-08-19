@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { QRCodeGenerator } from '@/components/LinkFeatures/QRCodeGenerator';
+import QRCodeGenerator from '@/components/LinkFeatures/QRCodeGenerator';
 
 interface QRCodeDialogProps {
   isOpen: boolean;
