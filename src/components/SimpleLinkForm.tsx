@@ -5,11 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Link, Settings } from 'lucide-react';
+import { ChevronDown, Link, Settings, Building } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 
 interface SimpleLinkFormProps {
   onSuccess?: (link: any) => void;
@@ -20,6 +22,7 @@ interface SimpleLinkFormProps {
 export function SimpleLinkForm({ onSuccess, onCancel, initialData }: SimpleLinkFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspaces();
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
@@ -62,25 +65,23 @@ export function SimpleLinkForm({ onSuccess, onCancel, initialData }: SimpleLinkF
       return;
     }
 
+    if (!currentWorkspace) {
+      toast({
+        title: 'Erro',
+        description: 'Nenhum workspace selecionado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Get user's default workspace
-      const { data: workspaces } = await supabase
-        .from('workspaces')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1);
-
-      if (!workspaces || workspaces.length === 0) {
-        throw new Error('Nenhum workspace encontrado');
-      }
-
       const linkData = {
         original_url: formData.original_url,
         title: formData.title || null,
         user_id: user.id,
-        workspace_id: workspaces[0].id,
+        workspace_id: currentWorkspace.id,
         short_slug: formData.custom_slug || undefined,
         custom_slug: !!formData.custom_slug,
         password_protected: formData.password_protected,
@@ -125,6 +126,17 @@ export function SimpleLinkForm({ onSuccess, onCancel, initialData }: SimpleLinkF
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Workspace Info */}
+      {currentWorkspace && (
+        <div className="p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-2 text-sm">
+            <Building className="w-4 h-4" />
+            <span className="font-medium">Workspace:</span>
+            <Badge variant="outline">{currentWorkspace.name}</Badge>
+          </div>
+        </div>
+      )}
+
       {/* URL Original */}
       <div className="space-y-2">
         <Label htmlFor="original_url">URL Original *</Label>

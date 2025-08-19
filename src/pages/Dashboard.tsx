@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SimpleLinkForm } from '@/components/SimpleLinkForm';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
+import { WorkspaceSelector } from '@/components/WorkspaceSelector';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,12 +27,14 @@ interface Link {
   expires_at?: string;
   custom_slug?: boolean;
   password?: string;
+  workspace_id: string;
 }
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { currentWorkspace, loading: workspacesLoading } = useWorkspaces();
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -39,19 +44,20 @@ export default function Dashboard() {
   const [selectedLinkForQR, setSelectedLinkForQR] = useState<Link | null>(null);
 
   useEffect(() => {
-    if (user) {
+    if (user && currentWorkspace) {
       fetchLinks();
     }
-  }, [user]);
+  }, [user, currentWorkspace]);
 
   const fetchLinks = async () => {
-    if (!user) return;
+    if (!user || !currentWorkspace) return;
 
     try {
       const { data, error } = await supabase
         .from('links')
         .select('*')
         .eq('user_id', user.id)
+        .eq('workspace_id', currentWorkspace.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -110,7 +116,7 @@ export default function Dashboard() {
     return `${window.location.origin}/${slug}`;
   };
 
-  if (loading) {
+  if (loading || workspacesLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -132,6 +138,7 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold">Shortwise</h1>
             </div>
             <div className="flex items-center gap-4">
+              <WorkspaceSelector />
               <Button
                 variant="outline"
                 size="sm"
@@ -202,22 +209,39 @@ export default function Dashboard() {
                 </CardTitle>
                 <CardDescription>
                   Transforme URLs longas em links curtos e personalizados
+                  {currentWorkspace && (
+                    <span className="block mt-1">
+                      Workspace: <Badge variant="outline" className="ml-1">{currentWorkspace.name}</Badge>
+                    </span>
+                  )}
                 </CardDescription>
               </div>
               {!showCreateForm && (
-                <Button onClick={() => setShowCreateForm(true)}>
+                <Button 
+                  onClick={() => setShowCreateForm(true)}
+                  disabled={!currentWorkspace}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Link
                 </Button>
               )}
             </div>
           </CardHeader>
-          {showCreateForm && (
+          {showCreateForm && currentWorkspace && (
             <CardContent>
               <SimpleLinkForm
                 onSuccess={handleLinkCreated}
                 onCancel={() => setShowCreateForm(false)}
               />
+            </CardContent>
+          )}
+          {!currentWorkspace && (
+            <CardContent>
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Selecione ou crie um workspace para começar a criar links
+                </p>
+              </div>
             </CardContent>
           )}
         </Card>
@@ -228,10 +252,23 @@ export default function Dashboard() {
             <CardTitle>Seus Links</CardTitle>
             <CardDescription>
               Gerencie e monitore todos os seus links encurtados
+              {currentWorkspace && (
+                <span className="block mt-1">
+                  Workspace atual: <Badge variant="outline" className="ml-1">{currentWorkspace.name}</Badge>
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {links.length === 0 ? (
+            {!currentWorkspace ? (
+              <div className="text-center py-12">
+                <Link className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum workspace selecionado</h3>
+                <p className="text-muted-foreground mb-4">
+                  Selecione um workspace para visualizar seus links
+                </p>
+              </div>
+            ) : links.length === 0 ? (
               <div className="text-center py-12">
                 <Link className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Nenhum link ainda</h3>
