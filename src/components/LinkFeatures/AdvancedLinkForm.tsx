@@ -112,22 +112,10 @@ const AdvancedLinkForm: React.FC<AdvancedLinkFormProps> = ({ onSubmit, loading, 
     setSubmitting(true);
 
     try {
-      // Get user's default workspace
-      const { data: workspaces } = await supabase
-        .from('workspaces')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1);
-
-      if (!workspaces || workspaces.length === 0) {
-        throw new Error('Nenhum workspace encontrado');
-      }
-
       const linkData = {
         original_url: formData.url,
         title: formData.title || null,
         user_id: user.id,
-        workspace_id: workspaces[0].id,
         short_slug: formData.custom_slug || undefined,
         custom_slug: !!formData.custom_slug,
         password_protected: formData.password_protected,

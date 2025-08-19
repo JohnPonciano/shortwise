@@ -4,10 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, User, Building, Users, Shield, Bell, Key } from 'lucide-react';
+import { ArrowLeft, User, Users, Shield, Bell, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AccountSettings from '@/components/Settings/AccountSettings';
-import WorkspaceManagement from '@/components/Settings/WorkspaceManagement';
 import TeamManagement from '@/components/Settings/TeamManagement';
 import AdvancedPermissions from '@/components/Settings/AdvancedPermissions';
 import SecuritySettings from '@/components/Settings/SecuritySettings';
@@ -37,14 +36,10 @@ export default function Settings() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <Tabs defaultValue="account" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="account" className="flex items-center gap-2">
                 <User className="w-4 h-4" />
                 Conta
-              </TabsTrigger>
-              <TabsTrigger value="workspaces" className="flex items-center gap-2">
-                <Building className="w-4 h-4" />
-                Workspaces
               </TabsTrigger>
               <TabsTrigger value="team" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
@@ -66,10 +61,6 @@ export default function Settings() {
 
             <TabsContent value="account">
               <AccountSettings />
-            </TabsContent>
-
-            <TabsContent value="workspaces">
-              <WorkspaceManagement />
             </TabsContent>
 
             <TabsContent value="team">
