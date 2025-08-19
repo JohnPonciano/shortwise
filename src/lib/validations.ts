@@ -48,7 +48,7 @@ export const signUpSchema = z.object({
   path: ["confirmPassword"],
 });
 
-// Profile validation schema (removido custom_domain)
+// Profile validation schema
 export const profileSchema = z.object({
   full_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').optional(),
   avatar_url: z.string().url('URL do avatar deve ser válida').optional(),
