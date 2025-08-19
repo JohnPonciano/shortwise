@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // Link validation schema
@@ -47,13 +48,10 @@ export const signUpSchema = z.object({
   path: ["confirmPassword"],
 });
 
-// Profile validation schema
+// Profile validation schema (removido custom_domain)
 export const profileSchema = z.object({
   full_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').optional(),
   avatar_url: z.string().url('URL do avatar deve ser válida').optional(),
-  custom_domain: z.string()
-    .regex(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Domínio inválido')
-    .optional(),
 });
 
 // Workspace validation schema

@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SimpleLinkForm } from '@/components/SimpleLinkForm';
-import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users } from 'lucide-react';
+import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Link {
@@ -19,6 +20,10 @@ interface Link {
   click_count: number;
   created_at: string;
   qr_code_enabled: boolean;
+  password_protected?: boolean;
+  expires_at?: string;
+  custom_slug?: boolean;
+  password?: string;
 }
 
 export default function Dashboard() {
@@ -28,6 +33,8 @@ export default function Dashboard() {
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingLink, setEditingLink] = useState<Link | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -65,6 +72,23 @@ export default function Dashboard() {
       title: 'Link criado!',
       description: 'Seu link foi criado com sucesso.',
     });
+  };
+
+  const handleLinkUpdated = (updatedLink: Link) => {
+    setLinks(prev => prev.map(link => 
+      link.id === updatedLink.id ? updatedLink : link
+    ));
+    setShowEditDialog(false);
+    setEditingLink(null);
+    toast({
+      title: 'Link atualizado!',
+      description: 'Suas alterações foram salvas com sucesso.',
+    });
+  };
+
+  const handleEditClick = (link: Link) => {
+    setEditingLink(link);
+    setShowEditDialog(true);
   };
 
   const copyToClipboard = (text: string) => {
@@ -229,6 +253,16 @@ export default function Dashboard() {
                             QR
                           </Badge>
                         )}
+                        {link.password_protected && (
+                          <Badge variant="outline" className="text-xs">
+                            🔒
+                          </Badge>
+                        )}
+                        {link.expires_at && (
+                          <Badge variant="destructive" className="text-xs">
+                            Expira
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-primary font-mono mb-1">
                         {getShortUrl(link.short_slug)}
@@ -247,6 +281,13 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditClick(link)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -269,6 +310,25 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Link Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Link</DialogTitle>
+          </DialogHeader>
+          {editingLink && (
+            <SimpleLinkForm
+              initialData={editingLink}
+              onSuccess={handleLinkUpdated}
+              onCancel={() => {
+                setShowEditDialog(false);
+                setEditingLink(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
