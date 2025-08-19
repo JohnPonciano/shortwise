@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SimpleLinkForm } from '@/components/SimpleLinkForm';
-import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit } from 'lucide-react';
+import { QRCodeDialog } from '@/components/QRCodeDialog';
+import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Link {
@@ -35,6 +35,8 @@ export default function Dashboard() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | null>(null);
+  const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
+  const [selectedLinkForQR, setSelectedLinkForQR] = useState<Link | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -89,6 +91,11 @@ export default function Dashboard() {
   const handleEditClick = (link: Link) => {
     setEditingLink(link);
     setShowEditDialog(true);
+  };
+
+  const handleQRCodeClick = (link: Link) => {
+    setSelectedLinkForQR(link);
+    setShowQRCodeDialog(true);
   };
 
   const copyToClipboard = (text: string) => {
@@ -288,6 +295,15 @@ export default function Dashboard() {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
+                      {link.qr_code_enabled && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleQRCodeClick(link)}
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -329,6 +345,19 @@ export default function Dashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* QR Code Dialog */}
+      {selectedLinkForQR && (
+        <QRCodeDialog
+          isOpen={showQRCodeDialog}
+          onClose={() => {
+            setShowQRCodeDialog(false);
+            setSelectedLinkForQR(null);
+          }}
+          shortUrl={getShortUrl(selectedLinkForQR.short_slug)}
+          linkTitle={selectedLinkForQR.title}
+        />
+      )}
     </div>
   );
 }
