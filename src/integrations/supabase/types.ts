@@ -7,29 +7,71 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.4"
+  }
   public: {
     Tables: {
       clicks: {
         Row: {
-          browser: string
-          city: string
+          browser: string | null
+          city: string | null
           clicked_at: string
-          country: string
-          device_type: 'desktop' | 'mobile' | 'tablet' | 'unknown'
+          country: string | null
+          device_type: Database["public"]["Enums"]["device_type"]
           id: string
-          ip_address: unknown
+          ip_address: unknown | null
           link_id: string
-          os: string
+          os: string | null
           referer: string | null
           region: string | null
           source_platform: string | null
           timezone: string | null
-          user_agent: string
+          user_agent: string | null
         }
-        Insert: any
-        Update: any
-        Relationships: [{ foreignKeyName: "clicks_link_id_fkey"; columns: ["link_id"]; isOneToOne: false; referencedRelation: "links"; referencedColumns: ["id"] }]
+        Insert: {
+          browser?: string | null
+          city?: string | null
+          clicked_at?: string
+          country?: string | null
+          device_type?: Database["public"]["Enums"]["device_type"]
+          id?: string
+          ip_address?: unknown | null
+          link_id: string
+          os?: string | null
+          referer?: string | null
+          region?: string | null
+          source_platform?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          browser?: string | null
+          city?: string | null
+          clicked_at?: string
+          country?: string | null
+          device_type?: Database["public"]["Enums"]["device_type"]
+          id?: string
+          ip_address?: unknown | null
+          link_id?: string
+          os?: string | null
+          referer?: string | null
+          region?: string | null
+          source_platform?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clicks_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "links"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       links: {
         Row: {
@@ -60,70 +102,212 @@ export type Database = {
           utm_term: string | null
           workspace_id: string
         }
-        Insert: any
-        Update: any
+        Insert: {
+          ab_test_urls?: string[] | null
+          ab_test_weights?: number[] | null
+          click_count?: number | null
+          created_at?: string
+          custom_slug?: boolean
+          deep_link_android?: string | null
+          deep_link_ios?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_clicks?: number | null
+          original_url: string
+          password?: string | null
+          password_protected?: boolean | null
+          qr_code_enabled?: boolean | null
+          short_slug: string
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id: string
+        }
+        Update: {
+          ab_test_urls?: string[] | null
+          ab_test_weights?: number[] | null
+          click_count?: number | null
+          created_at?: string
+          custom_slug?: boolean
+          deep_link_android?: string | null
+          deep_link_ios?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_clicks?: number | null
+          original_url?: string
+          password?: string | null
+          password_protected?: boolean | null
+          qr_code_enabled?: boolean | null
+          short_slug?: string
+          tags?: string[] | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "links_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
-        Row: any
-        Insert: any
-        Update: any
-      }
-      workspace_members: {
-        Row: any
-        Insert: any
-        Update: any
-      }
-      workspaces: {
-        Row: any
-        Insert: any
-        Update: any
-      }
-      workspace_invites: {
         Row: {
-          id: string
-          workspace_id: string
-          token: string
-          email: string | null
-          role: string
-          created_by: string | null
-          expires_at: string | null
-          accepted_by: string | null
-          accepted_at: string | null
+          avatar_url: string | null
           created_at: string
+          custom_domain: string | null
+          email: string
+          full_name: string | null
+          id: string
+          stripe_customer_id: string | null
+          subscription_active: boolean
+          subscription_end_date: string | null
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          workspace_id: string
-          token: string
-          role?: string
-          created_by?: string | null
-          email?: string | null
-          expires_at?: string | null
-        }
-        Update: Partial<Database['public']['Tables']['workspace_invites']['Row']>
-      }
-      notification_settings: {
-        Row: {
+          avatar_url?: string | null
+          created_at?: string
+          custom_domain?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          stripe_customer_id?: string | null
+          subscription_active?: boolean
+          subscription_end_date?: string | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
           user_id: string
-          email_new_links: boolean
-          email_analytics: boolean
-          email_security: boolean
-          email_team: boolean
-          email_marketing: boolean
-          push_new_links: boolean
-          push_analytics: boolean
-          push_security: boolean
-          push_team: boolean
-          frequency: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          custom_domain?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          stripe_customer_id?: string | null
+          subscription_active?: boolean
+          subscription_end_date?: string | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          joined_at: string | null
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          joined_at?: string | null
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_workspace_members_user_id"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          slug: string
           updated_at: string
         }
-        Insert: Partial<Database['public']['Tables']['notification_settings']['Row']> & { user_id: string }
-        Update: Partial<Database['public']['Tables']['notification_settings']['Row']>
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
-    Views: {}
-    Functions: {}
-    Enums: {}
-    CompositeTypes: {}
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      generate_short_slug: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+    }
+    Enums: {
+      device_type: "desktop" | "mobile" | "tablet" | "unknown"
+      subscription_tier: "free" | "pro"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
