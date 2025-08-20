@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const Auth = () => {
   const { signIn, signUp, user } = useAuth();
@@ -16,9 +18,14 @@ const Auth = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Redirect if already authenticated
+  // Verificar se há um convite pendente ao carregar a página
   useEffect(() => {
-    if (user) {
+    const pendingToken = localStorage.getItem('pending_invite_token');
+    if (pendingToken && user) {
+      // Se há um convite pendente e o usuário está logado, processar
+      navigate(`/invite/${pendingToken}`);
+    } else if (user) {
+      // Se não há convite pendente mas está logado, ir para dashboard
       navigate('/dashboard');
     }
   }, [user, navigate]);
@@ -36,11 +43,16 @@ const Auth = () => {
 
     if (error) {
       setError(error.message);
+      setLoading(false);
     } else {
-      navigate('/dashboard');
+      // Após login bem-sucedido, verificar se há convite pendente
+      const pendingToken = localStorage.getItem('pending_invite_token');
+      if (pendingToken) {
+        navigate(`/invite/${pendingToken}`);
+      } else {
+        navigate('/dashboard');
+      }
     }
-
-    setLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -69,7 +81,12 @@ const Auth = () => {
         setError(error.message);
       }
     } else {
-      setMessage('Check your email for a confirmation link to complete your registration.');
+      const pendingToken = localStorage.getItem('pending_invite_token');
+      if (pendingToken) {
+        setMessage('Check your email for a confirmation link. After confirming, you can accept the workspace invite.');
+      } else {
+        setMessage('Check your email for a confirmation link to complete your registration.');
+      }
     }
 
     setLoading(false);
