@@ -95,7 +95,6 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               <ul className="text-sm text-muted-foreground space-y-2">
-                <li>• Custom domain support</li>
                 <li>• Bulk link creation</li>
                 <li>• Link expiration controls</li>
               </ul>
@@ -210,10 +209,6 @@ const Index = () => {
                 <li className="flex items-center">
                   <BarChart3 className="h-4 w-4 text-success mr-3" />
                   <span>Advanced analytics</span>
-                </li>
-                <li className="flex items-center">
-                  <MousePointerClick className="h-4 w-4 text-success mr-3" />
-                  <span>Custom domains</span>
                 </li>
               </ul>
               <Button className="w-full shadow-glow" onClick={() => navigate('/auth')}>

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Mail, UserPlus, Crown, Shield, User, Trash2, Copy } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface TeamMember {
   id: string;
@@ -110,19 +111,24 @@ export default function TeamManagement() {
 
   const generateInviteLink = async () => {
     if (!selectedWorkspace) return;
-    
-    const workspace = workspaces.find(w => w.id === selectedWorkspace);
-    if (!workspace) return;
 
-    // In a real app, you'd generate a secure token and store it in the database
-    const inviteToken = btoa(`${selectedWorkspace}:${Date.now()}`);
-    const link = `${window.location.origin}/invite/${inviteToken}`;
-    setInviteLink(link);
+    try {
+      const token = uuidv4();
+      const { error } = await supabase.from('workspace_invites').insert({
+        workspace_id: selectedWorkspace,
+        token,
+        role: 'member',
+        created_by: user?.id,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      if (error) throw error;
 
-    toast({
-      title: 'Link de convite gerado!',
-      description: 'Copie o link e envie para as pessoas que deseja convidar.',
-    });
+      const link = `${window.location.origin}/invite/${token}`;
+      setInviteLink(link);
+      toast({ title: 'Link de convite gerado!', description: 'Copie o link e envie para as pessoas que deseja convidar.' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
   };
 
   const copyInviteLink = async () => {
@@ -146,21 +152,25 @@ export default function TeamManagement() {
     if (!selectedWorkspace || !user) return;
 
     try {
-      // In a real application, this would send an email invitation
-      toast({
-        title: 'Convite enviado!',
-        description: `Um convite foi enviado para ${inviteEmail}`,
+      const token = uuidv4();
+      const { error } = await supabase.from('workspace_invites').insert({
+        workspace_id: selectedWorkspace,
+        token,
+        role: inviteRole,
+        email: inviteEmail,
+        created_by: user.id,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       });
-      
+      if (error) throw error;
+
+      // Aqui poderíamos chamar uma Edge Function para enviar email de convite
+      toast({ title: 'Convite criado!', description: `Um convite foi criado para ${inviteEmail}` });
+
       setShowInviteDialog(false);
       setInviteEmail('');
       setInviteRole('member');
     } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 

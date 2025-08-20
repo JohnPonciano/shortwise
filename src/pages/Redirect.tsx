@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import PasswordProtection from '@/components/LinkFeatures/PasswordProtection';
 
 interface PlatformInfo {
   isMobile: boolean;
@@ -18,6 +19,10 @@ export default function Redirect() {
   const { slug } = useParams<{ slug: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [link, setLink] = useState<any | null>(null);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -26,7 +31,7 @@ export default function Redirect() {
       return;
     }
 
-    handleRedirect();
+    handleInitialFetch();
   }, [slug]);
 
   const detectPlatform = (): PlatformInfo => {
@@ -93,82 +98,50 @@ export default function Redirect() {
     }
   };
 
-  const handleRedirect = async () => {
+  const proceedRedirect = async (linkData: any) => {
     try {
-      setLoading(true);
-
-      // Get link data
-      const { data: link, error } = await supabase
-        .from('links')
-        .select('*')
-        .eq('short_slug', slug)
-        .eq('is_active', true)
-        .single();
-
-      if (error || !link) {
-        setError('Link não encontrado ou inativo');
-        return;
-      }
-
-      // Check if link has expired
-      if (link.expires_at && new Date(link.expires_at) < new Date()) {
-        setError('Este link expirou');
-        return;
-      }
-
-      // Check max clicks limit
-      if (link.max_clicks && link.click_count >= link.max_clicks) {
-        setError('Este link atingiu o limite máximo de cliques');
-        return;
-      }
-
-      // Detect platform
+      // Detect platform & track
       const platformInfo = detectPlatform();
+      await trackClick(linkData.id, platformInfo);
 
-      // Track the click
-      await trackClick(link.id, platformInfo);
-
-      // Update click count
+      // Update click count (best-effort)
       const { error: updateError } = await supabase
         .from('links')
         .update({ 
-          click_count: (link.click_count || 0) + 1 
+          click_count: (linkData.click_count || 0) + 1 
         })
-        .eq('id', link.id);
+        .eq('id', linkData.id);
 
       if (updateError) {
         console.error('Error updating click count:', updateError);
       }
 
       // Determine redirect URL based on platform
-      let redirectUrl = link.original_url;
+      let redirectUrl = linkData.original_url;
 
-      if (platformInfo.isIOS && link.deep_link_ios) {
-        redirectUrl = link.deep_link_ios;
-      } else if (platformInfo.isAndroid && link.deep_link_android) {
-        redirectUrl = link.deep_link_android;
+      if (platformInfo.isIOS && linkData.deep_link_ios) {
+        redirectUrl = linkData.deep_link_ios;
+      } else if (platformInfo.isAndroid && linkData.deep_link_android) {
+        redirectUrl = linkData.deep_link_android;
       }
 
       // Add UTM parameters if they exist
-      if (link.utm_source || link.utm_medium || link.utm_campaign || link.utm_term || link.utm_content) {
+      if (linkData.utm_source || linkData.utm_medium || linkData.utm_campaign || linkData.utm_term || linkData.utm_content) {
         const url = new URL(redirectUrl);
-        if (link.utm_source) url.searchParams.set('utm_source', link.utm_source);
-        if (link.utm_medium) url.searchParams.set('utm_medium', link.utm_medium);
-        if (link.utm_campaign) url.searchParams.set('utm_campaign', link.utm_campaign);
-        if (link.utm_term) url.searchParams.set('utm_term', link.utm_term);
-        if (link.utm_content) url.searchParams.set('utm_content', link.utm_content);
+        if (linkData.utm_source) url.searchParams.set('utm_source', linkData.utm_source);
+        if (linkData.utm_medium) url.searchParams.set('utm_medium', linkData.utm_medium);
+        if (linkData.utm_campaign) url.searchParams.set('utm_campaign', linkData.utm_campaign);
+        if (linkData.utm_term) url.searchParams.set('utm_term', linkData.utm_term);
+        if (linkData.utm_content) url.searchParams.set('utm_content', linkData.utm_content);
         redirectUrl = url.toString();
       }
 
       // Handle A/B testing
-      if (link.ab_test_urls && link.ab_test_urls.length > 0) {
-        const allUrls = [redirectUrl, ...link.ab_test_urls];
-        const weights = link.ab_test_weights || allUrls.map(() => 1);
-        
-        // Weighted random selection
-        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+      if (linkData.ab_test_urls && linkData.ab_test_urls.length > 0) {
+        const allUrls = [redirectUrl, ...linkData.ab_test_urls];
+        const weights = linkData.ab_test_weights || allUrls.map(() => 1);
+        const totalWeight = weights.reduce((sum: number, weight: number) => sum + weight, 0);
         const random = Math.random() * totalWeight;
-        
         let currentWeight = 0;
         for (let i = 0; i < allUrls.length; i++) {
           currentWeight += weights[i] || 1;
@@ -181,7 +154,49 @@ export default function Redirect() {
 
       // Redirect
       window.location.href = redirectUrl;
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const handleInitialFetch = async () => {
+    try {
+      setLoading(true);
+
+      // Get link data
+      const { data: fetchedLink, error: fetchError } = await supabase
+        .from('links')
+        .select('*')
+        .eq('short_slug', slug)
+        .eq('is_active', true)
+        .single();
+
+      if (fetchError || !fetchedLink) {
+        setError('Link não encontrado ou inativo');
+        return;
+      }
+
+      // Check if link has expired
+      if (fetchedLink.expires_at && new Date(fetchedLink.expires_at) < new Date()) {
+        setError('Este link expirou');
+        return;
+      }
+
+      // Check max clicks limit
+      if (fetchedLink.max_clicks && fetchedLink.click_count >= fetchedLink.max_clicks) {
+        setError('Este link atingiu o limite máximo de cliques');
+        return;
+      }
+
+      // If password protected, request password and stop here
+      if (fetchedLink.password_protected) {
+        setLink(fetchedLink);
+        setNeedsPassword(true);
+        return;
+      }
+
+      // Otherwise, proceed
+      await proceedRedirect(fetchedLink);
     } catch (error) {
       console.error('Redirect error:', error);
       setError('Erro interno do servidor');
@@ -189,6 +204,45 @@ export default function Redirect() {
       setLoading(false);
     }
   };
+
+  const handlePasswordSubmit = async (password: string) => {
+    if (!link) return;
+    setVerifyingPassword(true);
+    setPasswordError(null);
+    try {
+      // Validate password on DB without exposing the stored password
+      const { data, error } = await supabase
+        .from('links')
+        .select('id')
+        .eq('id', link.id)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        setPasswordError('Senha incorreta');
+        return;
+      }
+
+      // Password OK, proceed
+      await proceedRedirect(link);
+    } catch (err) {
+      console.error('Password validation error:', err);
+      setPasswordError('Erro ao validar a senha');
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
+  if (needsPassword && link) {
+    return (
+      <PasswordProtection
+        onPasswordSubmit={handlePasswordSubmit}
+        loading={verifyingPassword}
+        error={passwordError || undefined}
+        linkTitle={link.title}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-background">

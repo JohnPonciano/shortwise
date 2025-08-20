@@ -142,6 +142,15 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => navigate('/analytics')}
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => navigate('/settings')}
                 className="flex items-center gap-2"
               >

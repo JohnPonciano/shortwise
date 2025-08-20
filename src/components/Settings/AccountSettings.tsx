@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { User, Mail, CreditCard, Upload } from 'lucide-react';
 
 export default function AccountSettings() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, signOut } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     custom_domain: profile?.custom_domain || '',
   });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +49,69 @@ export default function AccountSettings() {
         description: error.message,
         variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAvatarButton = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'Tamanho máximo: 2MB', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrl } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl.publicUrl })
+        .eq('user_id', user.id);
+      if (updateError) throw updateError;
+
+      await refreshProfile();
+      toast({ title: 'Foto atualizada!' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao enviar avatar', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmed = confirm('Tem certeza que deseja excluir sua conta e todos os dados? Esta ação é irreversível.');
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      // Remover participação em workspaces
+      await supabase.from('workspace_members').delete().eq('user_id', user.id);
+      // Remover links do usuário (clicks têm ON DELETE CASCADE)
+      await supabase.from('links').delete().eq('user_id', user.id);
+      // Remover workspaces que o usuário é owner (membros/links relacionados devem ser limpos pelas FKs)
+      await supabase.from('workspaces').delete().eq('owner_id', user.id);
+      // Remover perfil
+      await supabase.from('profiles').delete().eq('user_id', user.id);
+
+      toast({ title: 'Conta excluída', description: 'Seus dados foram removidos.' });
+      await signOut();
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir conta', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -84,7 +148,8 @@ export default function AccountSettings() {
               </AvatarFallback>
             </Avatar>
             <div className="space-y-2">
-              <Button variant="outline" size="sm">
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUploadAvatar} />
+              <Button variant="outline" size="sm" onClick={handleAvatarButton} disabled={loading}>
                 <Upload className="w-4 h-4 mr-2" />
                 Alterar Foto
               </Button>
@@ -116,20 +181,6 @@ export default function AccountSettings() {
                 />
               </div>
             </div>
-
-       {/* <div className="space-y-2">
-            <Label htmlFor="custom_domain">Domínio Personalizado</Label>
-              <Input
-                id="custom_domain"
-                value={formData.custom_domain}
-                onChange={(e) => setFormData(prev => ({ ...prev, custom_domain: e.target.value }))}
-                placeholder="seudominio.com"
-              />
-              <p className="text-sm text-muted-foreground">
-                Configure seu próprio domínio para os links encurtados
-              </p>
-         </div> */}
-
 
             <Button type="submit" disabled={loading}>
               {loading ? 'Salvando...' : 'Salvar Alterações'}
@@ -168,19 +219,6 @@ export default function AccountSettings() {
               <Button>Fazer Upgrade</Button>
             )}
           </div>
-
-          {profile?.subscription_tier === 'pro' && (
-            <div className="p-4 bg-muted rounded-lg">
-              <h4 className="font-medium mb-2">Recursos Pro Ativos:</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Links ilimitados</li>
-                <li>• Analytics avançados</li>
-                <li>• Domínio personalizado</li>
-                <li>• Colaboração em equipe</li>
-                <li>• Suporte prioritário</li>
-              </ul>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -200,7 +238,7 @@ export default function AccountSettings() {
                 Exclua permanentemente sua conta e todos os dados associados
               </p>
             </div>
-            <Button variant="destructive" size="sm">
+            <Button variant="destructive" size="sm" onClick={handleDeleteAccount} disabled={loading}>
               Excluir Conta
             </Button>
           </div>

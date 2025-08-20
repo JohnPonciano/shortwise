@@ -13,6 +13,9 @@ import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Redirect from "./pages/Redirect";
 import NotFound from "./pages/NotFound";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
+import AnalyticsPage from "./pages/Analytics";
+import InvitePage from "./pages/Invite";
 
 const queryClient = new QueryClient();
 
@@ -21,30 +24,42 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={
-                <ProtectedRoute requireAuth={false}>
-                  <Auth />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard" element={
-                <ProtectedRoute requireAuth={true}>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute requireAuth={true}>
-                  <Settings />
-                </ProtectedRoute>
-              } />
-              <Route path="/:slug" element={<Redirect />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <WorkspaceProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={
+                  <ProtectedRoute requireAuth={false}>
+                    <Auth />
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute requireAuth={true}>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/analytics" element={
+                  <ProtectedRoute requireAuth={true}>
+                    <AnalyticsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/invite/:token" element={
+                  <ProtectedRoute requireAuth={true}>
+                    <InvitePage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute requireAuth={true}>
+                    <Settings />
+                  </ProtectedRoute>
+                } />
+                <Route path=":slug" element={<Redirect />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </WorkspaceProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
