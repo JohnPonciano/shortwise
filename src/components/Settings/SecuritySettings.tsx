@@ -35,9 +35,18 @@ export default function SecuritySettings() {
       if (error) return;
       const allFactors = (data as any)?.factors || (data as any)?.all || [];
       setFactors(allFactors);
-      const totp = ((data as any)?.totp || allFactors)?.find((f: any) => (f.factor_type === 'totp' || f.type === 'totp') && f.status === 'verified');
-      setTwoFactorEnabled(!!totp);
-      setEnrolledFactorId(totp?.id || null);
+      
+      // Verificar se há um fator TOTP verificado
+      const verifiedTotp = ((data as any)?.totp || allFactors)?.find((f: any) => (f.factor_type === 'totp' || f.type === 'totp') && f.status === 'verified');
+      setTwoFactorEnabled(!!verifiedTotp);
+      setEnrolledFactorId(verifiedTotp?.id || null);
+      
+      // Verificar se há um fator TOTP não verificado (para limpeza)
+      const unverifiedTotp = ((data as any)?.totp || allFactors)?.find((f: any) => (f.factor_type === 'totp' || f.type === 'totp') && f.status === 'unverified');
+      if (unverifiedTotp) {
+        // Limpar fator não verificado automaticamente
+        await supabase.auth.mfa.unenroll({ factorId: unverifiedTotp.id });
+      }
     };
     fetchFactors();
   }, []);
@@ -45,11 +54,24 @@ export default function SecuritySettings() {
   const handleEnrollTotp = async () => {
     try {
       setLoading(true);
+      
+      // Primeiro, verificar se já existe um fator não verificado e removê-lo
+      const { data: factorsData } = await supabase.auth.mfa.listFactors();
+      const allFactors = (factorsData as any)?.factors || (factorsData as any)?.all || [];
+      const unverifiedTotp = allFactors.find((f: any) => (f.factor_type === 'totp' || f.type === 'totp') && f.status === 'unverified');
+      
+      if (unverifiedTotp) {
+        await supabase.auth.mfa.unenroll({ factorId: unverifiedTotp.id });
+      }
+      
+      // Agora criar um novo fator
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
       if (error) throw error;
+      
       setEnrolledFactorId((data as any)?.id || null);
       setTotpQR((data as any)?.totp?.qr_code || '');
       setTotpSecret((data as any)?.totp?.secret || '');
+      
       // Create a challenge to be verified
       const { data: chall, error: challErr } = await supabase.auth.mfa.challenge({ factorId: (data as any)?.id });
       if (challErr) throw challErr;
@@ -73,6 +95,12 @@ export default function SecuritySettings() {
       setShowTotpModal(false);
       setVerificationCode('');
       setChallengeId(null);
+      setTotpQR('');
+      setTotpSecret('');
+      // Atualizar a lista de fatores para refletir o novo estado
+      const { data } = await supabase.auth.mfa.listFactors();
+      const allFactors = (data as any)?.factors || (data as any)?.all || [];
+      setFactors(allFactors);
     } catch (e: any) {
       toast({ title: 'Código inválido', description: 'Tente novamente', variant: 'destructive' });
     } finally {
@@ -94,6 +122,23 @@ export default function SecuritySettings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCloseTotpModal = async () => {
+    // Se o modal for fechado sem verificar, limpar o fator não verificado
+    if (enrolledFactorId && !twoFactorEnabled) {
+      try {
+        await supabase.auth.mfa.unenroll({ factorId: enrolledFactorId });
+        setEnrolledFactorId(null);
+        setChallengeId(null);
+        setTotpQR('');
+        setTotpSecret('');
+        setVerificationCode('');
+      } catch (error) {
+        console.error('Erro ao limpar fator não verificado:', error);
+      }
+    }
+    setShowTotpModal(false);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -170,7 +215,7 @@ export default function SecuritySettings() {
         </CardContent>
       </Card>
 
-      <Dialog open={showTotpModal} onOpenChange={setShowTotpModal}>
+      <Dialog open={showTotpModal} onOpenChange={handleCloseTotpModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Ativar 2FA (TOTP)</DialogTitle>
@@ -190,7 +235,7 @@ export default function SecuritySettings() {
               <Input id="totp-code" value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} placeholder="000000" maxLength={6} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowTotpModal(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={handleCloseTotpModal}>Cancelar</Button>
               <Button onClick={handleVerifyTotp} disabled={verifying || verificationCode.length < 6}>{verifying ? 'Verificando...' : 'Ativar 2FA'}</Button>
             </div>
           </div>

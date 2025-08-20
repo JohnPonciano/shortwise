@@ -176,6 +176,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          role: string | null
           stripe_customer_id: string | null
           subscription_active: boolean
           subscription_end_date: string | null
@@ -190,6 +191,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id?: string
+          role?: string | null
           stripe_customer_id?: string | null
           subscription_active?: boolean
           subscription_end_date?: string | null
@@ -204,6 +206,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          role?: string | null
           stripe_customer_id?: string | null
           subscription_active?: boolean
           subscription_end_date?: string | null
@@ -257,6 +260,59 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          user_id: string
+          email_new_links: boolean
+          email_analytics: boolean
+          email_security: boolean
+          email_team: boolean
+          email_marketing: boolean
+          push_new_links: boolean
+          push_analytics: boolean
+          push_security: boolean
+          push_team: boolean
+          frequency: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          email_new_links?: boolean
+          email_analytics?: boolean
+          email_security?: boolean
+          email_team?: boolean
+          email_marketing?: boolean
+          push_new_links?: boolean
+          push_analytics?: boolean
+          push_security?: boolean
+          push_team?: boolean
+          frequency?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          email_new_links?: boolean
+          email_analytics?: boolean
+          email_security?: boolean
+          email_team?: boolean
+          email_marketing?: boolean
+          push_new_links?: boolean
+          push_analytics?: boolean
+          push_security?: boolean
+          push_team?: boolean
+          frequency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }

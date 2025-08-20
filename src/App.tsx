@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import AnalyticsPage from "./pages/Analytics";
 import InvitePage from "./pages/Invite";
+import AdminPage from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,11 @@ const App = () => (
                 <Route path="/settings" element={
                   <ProtectedRoute requireAuth={true}>
                     <Settings />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute requireAuth={true}>
+                    <AdminPage />
                   </ProtectedRoute>
                 } />
                 <Route path=":slug" element={<Redirect />} />

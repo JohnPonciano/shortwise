@@ -12,6 +12,7 @@ interface Profile {
   subscription_active: boolean;
   subscription_end_date: string | null;
   custom_domain: string | null;
+  role?: 'user' | 'admin' | 'moderator';
 }
 
 interface AuthContextType {

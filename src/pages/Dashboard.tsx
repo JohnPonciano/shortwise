@@ -12,7 +12,7 @@ import { SimpleLinkForm } from '@/components/SimpleLinkForm';
 import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { WorkspaceSelector } from '@/components/WorkspaceSelector';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
-import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode } from 'lucide-react';
+import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Link {
@@ -31,7 +31,7 @@ interface Link {
 }
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentWorkspace, loading: workspacesLoading } = useWorkspaces();
@@ -157,6 +157,17 @@ export default function Dashboard() {
                 <Settings className="w-4 h-4" />
                 Configurações
               </Button>
+              {profile?.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/admin')}
+                  className="flex items-center gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  Admin
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={signOut}>
                 Sair
               </Button>
