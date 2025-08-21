@@ -77,15 +77,17 @@ export function useSubscription() {
 
   const getSubscriptionStatus = () => {
     if (!profile) return 'unknown';
-    
-    if (profile.subscription_tier === 'pro' && profile.subscription_active) {
-      return 'active';
+
+    const now = new Date();
+    const end = profile.subscription_end_date ? new Date(profile.subscription_end_date) : null;
+
+    if (profile.subscription_tier === 'pro') {
+      if (end && end < now) {
+        return 'expired';
+      }
+      return profile.subscription_active ? 'active' : 'inactive';
     }
-    
-    if (profile.subscription_tier === 'pro' && !profile.subscription_active) {
-      return 'inactive';
-    }
-    
+
     return 'free';
   };
 

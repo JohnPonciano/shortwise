@@ -64,8 +64,8 @@ serve(async (req) => {
 			});
 		}
 
-		// Calcula data de expiração (30 dias)
-		const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+		// Calcula data de expiração (30 dias) em UTC ISO para compatibilidade de tipos
+		const expiresAt = (() => { const d = new Date(); d.setUTCDate(d.getUTCDate() + 30); return d.toISOString(); })();
 
 		// Atualiza o perfil do usuário para PRO
 		const { error: upErr } = await supabase

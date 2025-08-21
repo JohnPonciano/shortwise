@@ -12,6 +12,7 @@ import { QRCodeDialog } from '@/components/QRCodeDialog';
 import { WorkspaceSelector } from '@/components/WorkspaceSelector';
 import { LinkExport } from '@/components/LinkExport';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
+import { useAccess } from '@/hooks/useAccess';
 import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode, Crown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentWorkspace, loading: workspacesLoading } = useWorkspaces();
+  const { check, limits, isPro } = useAccess();
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -60,11 +62,14 @@ export default function Dashboard() {
           const last = localStorage.getItem('abacatepay_last_billing');
           const parsed = last ? JSON.parse(last) : null;
           if (parsed && user) {
+            // define end_date para hoje+30
+            const expiresAt = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString(); })();
             await supabase
               .from('profiles')
               .update({
                 subscription_tier: 'pro',
                 subscription_active: true,
+                subscription_end_date: expiresAt,
                 abacatepay_customer_id: parsed.customerId || null,
                 abacatepay_subscription_id: parsed.id || null,
               })
@@ -269,7 +274,16 @@ export default function Dashboard() {
               </div>
               {!showCreateForm && (
                 <Button 
-                  onClick={() => setShowCreateForm(true)}
+                  onClick={() => {
+                    // gating: se não Pro e atingiu limite, sugere upgrade
+                    const canCreate = limits.links === -1 || links.length < limits.links;
+                    if (!canCreate) {
+                      toast({ title: 'Limite atingido', description: 'Faça upgrade para criar mais links.' });
+                      navigate('/checkout?plan=pro&returnUrl=/dashboard');
+                      return;
+                    }
+                    setShowCreateForm(true);
+                  }}
                   disabled={!currentWorkspace}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -313,7 +327,13 @@ export default function Dashboard() {
                 </CardDescription>
               </div>
               {currentWorkspace && links.length > 0 && (
-                <LinkExport links={links} />
+                check('exportData').allowed ? (
+                  <LinkExport links={links} />
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/checkout?plan=pro&returnUrl=/dashboard')}>
+                    Upgrade para exportar
+                  </Button>
+                )
               )}
             </div>
           </CardHeader>

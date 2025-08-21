@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, ArrowLeft, Check, Zap, CreditCard, QrCode, FileText } from 'lucide-react';
+import { Crown, ArrowLeft, Check, Zap, QrCode } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -21,33 +21,20 @@ export default function CheckoutPage() {
   const [customerEmail, setCustomerEmail] = useState<string>('');
   const [customerTaxId, setCustomerTaxId] = useState<string>('');
   const [customerCellphone, setCustomerCellphone] = useState<string>('');
-  const [cardEnabled, setCardEnabled] = useState<boolean>(true);
 
   const plan = searchParams.get('plan');
   const returnUrl = searchParams.get('returnUrl') || '/dashboard';
 
   const getMethodDisplayName = (method: string) => {
     switch (method) {
-      case 'CREDIT_CARD':
-        return 'Cartão de Crédito';
       case 'PIX':
         return 'PIX';
-      case 'BOLETO':
-        return 'Boleto';
       default:
-        return 'Cartão de Crédito';
+        return 'PIX';
     }
   };
 
   const handleMethodSelect = (method: string) => {
-    if (method === 'CREDIT_CARD' && !cardEnabled) {
-      toast({
-        title: 'Indisponível',
-        description: 'Cartão de crédito não está habilitado no seu ambiente. Use PIX ou Boleto.',
-        variant: 'destructive',
-      });
-      return;
-    }
     setSelectedMethod(method);
     toast({
       title: 'Método selecionado',
@@ -77,7 +64,7 @@ export default function CheckoutPage() {
     try {
       console.log('Criando cobrança com método:', selectedMethod);
       
-      const apiMethod = selectedMethod === 'CREDIT_CARD' ? 'CARD' : selectedMethod;
+      const apiMethod = selectedMethod;
       const billing = await abacatePayClient.createSubscription({
         frequency: 'ONE_TIME',
         methods: [apiMethod],
@@ -145,11 +132,6 @@ export default function CheckoutPage() {
         errorMessage = 'Erro de conexão com AbacatePay. Verifique sua internet.';
       } else if (error.message?.includes('403')) {
         errorMessage = 'Seu ambiente não está habilitado para este método. Tente outro método (ex.: PIX).';
-        // Se veio 403 com cartão, desabilita o método durante a sessão e troca para PIX
-        if (selectedMethod === 'CREDIT_CARD') {
-          setCardEnabled(false);
-          setSelectedMethod('PIX');
-        }
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -317,36 +299,11 @@ export default function CheckoutPage() {
             <CardHeader>
               <CardTitle>Métodos de Pagamento</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Escolha a forma de pagamento que preferir
+                Apenas PIX disponível no momento
               </p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleMethodSelect('CREDIT_CARD')}
-                  disabled={!cardEnabled}
-                  className={`flex flex-col items-start p-4 border rounded-lg transition-all cursor-pointer ${
-                    selectedMethod === 'CREDIT_CARD'
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-border hover:border-primary/50'
-                  } ${!cardEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <div className="flex items-center mb-2">
-                    <CreditCard className={`h-4 w-4 mr-2 ${
-                      selectedMethod === 'CREDIT_CARD' ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
-                    <span className={`text-sm font-medium ${
-                      selectedMethod === 'CREDIT_CARD' ? 'text-primary' : 'text-foreground'
-                    }`}>
-                      Cartão de Crédito
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {!cardEnabled ? 'Indisponível neste ambiente' : 'Pagamento instantâneo e seguro'}
-                  </p>
-                </button>
-                
                 <button
                   type="button"
                   onClick={() => handleMethodSelect('PIX')}
@@ -368,30 +325,6 @@ export default function CheckoutPage() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Pagamento instantâneo via QR Code
-                  </p>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => handleMethodSelect('BOLETO')}
-                  className={`flex flex-col items-start p-4 border rounded-lg transition-all cursor-pointer ${
-                    selectedMethod === 'BOLETO'
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <div className="flex items-center mb-2">
-                    <FileText className={`h-4 w-4 mr-2 ${
-                      selectedMethod === 'BOLETO' ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
-                    <span className={`text-sm font-medium ${
-                      selectedMethod === 'BOLETO' ? 'text-primary' : 'text-foreground'
-                    }`}>
-                      Boleto
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Pagamento em até 3 dias úteis
                   </p>
                 </button>
               </div>
