@@ -168,6 +168,59 @@ export type Database = {
           },
         ]
       }
+      notification_settings: {
+        Row: {
+          email_analytics: boolean | null
+          email_marketing: boolean | null
+          email_new_links: boolean | null
+          email_security: boolean | null
+          email_team: boolean | null
+          frequency: string | null
+          push_analytics: boolean | null
+          push_new_links: boolean | null
+          push_security: boolean | null
+          push_team: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          email_analytics?: boolean | null
+          email_marketing?: boolean | null
+          email_new_links?: boolean | null
+          email_security?: boolean | null
+          email_team?: boolean | null
+          frequency?: string | null
+          push_analytics?: boolean | null
+          push_new_links?: boolean | null
+          push_security?: boolean | null
+          push_team?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          email_analytics?: boolean | null
+          email_marketing?: boolean | null
+          email_new_links?: boolean | null
+          email_security?: boolean | null
+          email_team?: boolean | null
+          frequency?: string | null
+          push_analytics?: boolean | null
+          push_new_links?: boolean | null
+          push_security?: boolean | null
+          push_team?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -260,59 +313,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      notification_settings: {
-        Row: {
-          user_id: string
-          email_new_links: boolean
-          email_analytics: boolean
-          email_security: boolean
-          email_team: boolean
-          email_marketing: boolean
-          push_new_links: boolean
-          push_analytics: boolean
-          push_security: boolean
-          push_team: boolean
-          frequency: string
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          email_new_links?: boolean
-          email_analytics?: boolean
-          email_security?: boolean
-          email_team?: boolean
-          email_marketing?: boolean
-          push_new_links?: boolean
-          push_analytics?: boolean
-          push_security?: boolean
-          push_team?: boolean
-          frequency?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          email_new_links?: boolean
-          email_analytics?: boolean
-          email_security?: boolean
-          email_team?: boolean
-          email_marketing?: boolean
-          push_new_links?: boolean
-          push_analytics?: boolean
-          push_security?: boolean
-          push_team?: boolean
-          frequency?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notification_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
           },
         ]
       }
