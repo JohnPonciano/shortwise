@@ -52,20 +52,49 @@ export default function Dashboard() {
   const fetchLinks = async () => {
     if (!user || !currentWorkspace) return;
 
+    console.log('=== DEBUG FETCH LINKS ===');
+    console.log('User ID:', user.id);
+    console.log('Current Workspace:', currentWorkspace);
+    console.log('Profile:', profile);
+
     try {
+      // Primeiro, vamos verificar se o usuário é membro do workspace
+      console.log('Verificando membership no workspace...');
+      const { data: membership, error: membershipError } = await supabase
+        .from('workspace_members')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .eq('user_id', user.id);
+
+      console.log('Membership result:', membership, 'Error:', membershipError);
+
+      // Verificar se é proprietário do workspace
+      const isOwner = currentWorkspace.owner_id === user.id;
+      console.log('Is workspace owner:', isOwner);
+
+      // Buscar links
+      console.log('Buscando links do workspace...');
       const { data, error } = await supabase
         .from('links')
         .select('*')
-        .eq('user_id', user.id)
         .eq('workspace_id', currentWorkspace.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      console.log('Links query result:', data);
+      console.log('Links query error:', error);
+
+      if (error) {
+        console.error('Erro na consulta de links:', error);
+        throw error;
+      }
+
+      console.log('Links encontrados:', data?.length || 0);
       setLinks(data || []);
     } catch (error: any) {
+      console.error('Erro completo ao carregar links:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar links',
+        description: 'Erro ao carregar links: ' + error.message,
         variant: 'destructive',
       });
     } finally {
@@ -74,6 +103,7 @@ export default function Dashboard() {
   };
 
   const handleLinkCreated = (newLink: Link) => {
+    console.log('Link criado:', newLink);
     setLinks(prev => [newLink, ...prev]);
     setShowCreateForm(false);
     toast({
@@ -177,6 +207,18 @@ export default function Dashboard() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
+        {/* Debug Info */}
+        {currentWorkspace && (
+          <div className="mb-4 p-4 bg-muted rounded-lg">
+            <h3 className="font-semibold mb-2">Debug Info:</h3>
+            <p>User ID: {user?.id}</p>
+            <p>Workspace ID: {currentWorkspace.id}</p>
+            <p>Workspace Owner: {currentWorkspace.owner_id}</p>
+            <p>Is Owner: {currentWorkspace.owner_id === user?.id ? 'Sim' : 'Não'}</p>
+            <p>Links encontrados: {links.length}</p>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
