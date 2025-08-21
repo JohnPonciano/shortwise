@@ -40,6 +40,7 @@ interface User {
   updated_at: string;
   links_count?: number;
   workspaces_count?: number;
+  clicks_count?: number;
 }
 
 export default function UserManagement() {
@@ -71,22 +72,33 @@ export default function UserManagement() {
       // Buscar todos os links para contar por usuário
       const { data: allLinks } = await supabase
         .from('links')
-        .select('user_id');
+        .select('id, user_id');
 
       // Buscar todos os workspaces para contar por usuário
       const { data: allWorkspaces } = await supabase
         .from('workspaces')
         .select('owner_id');
 
+      // Buscar dados de cliques por usuário
+      const { data: allClicks } = await supabase
+        .from('clicks')
+        .select('link_id');
+
       // Processar dados
       const processedUsers = usersData?.map(user => {
-        const linksCount = allLinks?.filter(l => l.user_id === user.user_id).length || 0;
+        const userLinks = allLinks?.filter(l => l.user_id === user.user_id) || [];
+        const linksCount = userLinks.length;
         const workspacesCount = allWorkspaces?.filter(w => w.owner_id === user.user_id).length || 0;
+        
+        // Calcular cliques totais do usuário
+        const userLinkIds = userLinks.map(l => l.id);
+        const clicksCount = allClicks?.filter(c => userLinkIds.includes(c.link_id)).length || 0;
         
         return {
           ...user,
           links_count: linksCount,
           workspaces_count: workspacesCount,
+          clicks_count: clicksCount,
           role: (user.role as 'user' | 'admin' | 'moderator') || 'user'
         };
       }) || [];
@@ -258,7 +270,7 @@ export default function UserManagement() {
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                       <div className="flex items-center gap-4 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {user.links_count} links • {user.workspaces_count} workspaces
+                          {user.links_count} links • {user.workspaces_count} workspaces • {user.clicks_count || 0} cliques
                         </span>
                         <span className="text-xs text-muted-foreground">
                           Criado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -387,6 +399,10 @@ export default function UserManagement() {
                     <div className="flex justify-between">
                       <span>Workspaces:</span>
                       <span className="font-medium">{selectedUser.workspaces_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Cliques totais:</span>
+                      <span className="font-medium">{selectedUser.clicks_count || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Status:</span>

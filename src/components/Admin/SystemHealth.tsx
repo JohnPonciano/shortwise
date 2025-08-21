@@ -264,6 +264,14 @@ export default function SystemHealth() {
               <span className="text-sm">Monitoramento</span>
               <Badge variant="default" className="bg-green-500">24/7</Badge>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">RLS Ativo</span>
+              <Badge variant="default" className="bg-green-500">Sim</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Usuários Ativos</span>
+              <span className="font-medium">{systemStatus.activeConnections}</span>
+            </div>
           </CardContent>
         </Card>
       </div>

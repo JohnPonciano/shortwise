@@ -37,6 +37,10 @@ interface AdminStats {
   activeUsers: number;
   newUsersThisMonth: number;
   newWorkspacesThisMonth: number;
+  newUsersToday: number;
+  newLinksToday: number;
+  clicksToday: number;
+  proUpgradesToday: number;
 }
 
 export default function Admin() {
@@ -53,6 +57,10 @@ export default function Admin() {
     activeUsers: 0,
     newUsersThisMonth: 0,
     newWorkspacesThisMonth: 0,
+    newUsersToday: 0,
+    newLinksToday: 0,
+    clicksToday: 0,
+    proUpgradesToday: 0,
   });
 
   useEffect(() => {
@@ -74,6 +82,16 @@ export default function Admin() {
     try {
       setLoading(true);
       
+      // Calcular datas
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+      
+      const thisMonth = new Date();
+      thisMonth.setDate(1);
+      thisMonth.setHours(0, 0, 0, 0);
+      const thisMonthISO = thisMonth.toISOString();
+      
       // Buscar estatísticas gerais
       const [
         { count: totalUsers },
@@ -83,7 +101,11 @@ export default function Admin() {
         { count: proUsers },
         { count: activeUsers },
         { count: newUsersThisMonth },
-        { count: newWorkspacesThisMonth }
+        { count: newWorkspacesThisMonth },
+        { count: newUsersToday },
+        { count: newLinksToday },
+        { count: clicksToday },
+        { data: proUpgradesToday }
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('workspaces').select('*', { count: 'exact', head: true }),
@@ -91,8 +113,12 @@ export default function Admin() {
         supabase.from('clicks').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_tier', 'pro'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from('workspaces').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', thisMonthISO),
+        supabase.from('workspaces').select('*', { count: 'exact', head: true }).gte('created_at', thisMonthISO),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
+        supabase.from('links').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
+        supabase.from('clicks').select('*', { count: 'exact', head: true }).gte('clicked_at', todayISO),
+        supabase.from('profiles').select('*').eq('subscription_tier', 'pro').gte('updated_at', todayISO),
       ]);
 
       setStats({
@@ -104,6 +130,10 @@ export default function Admin() {
         activeUsers: activeUsers || 0,
         newUsersThisMonth: newUsersThisMonth || 0,
         newWorkspacesThisMonth: newWorkspacesThisMonth || 0,
+        newUsersToday: newUsersToday || 0,
+        newLinksToday: newLinksToday || 0,
+        clicksToday: clicksToday || 0,
+        proUpgradesToday: proUpgradesToday?.length || 0,
       });
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
@@ -241,19 +271,19 @@ export default function Admin() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Novos usuários hoje</span>
-                      <Badge variant="secondary">+{Math.floor(Math.random() * 10)}</Badge>
+                      <Badge variant="secondary">+{stats.newUsersToday}</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Links criados hoje</span>
-                      <Badge variant="secondary">+{Math.floor(Math.random() * 50)}</Badge>
+                      <Badge variant="secondary">+{stats.newLinksToday}</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Cliques hoje</span>
-                      <Badge variant="secondary">+{Math.floor(Math.random() * 200)}</Badge>
+                      <Badge variant="secondary">+{stats.clicksToday}</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Upgrades para Pro</span>
-                      <Badge variant="default">+{Math.floor(Math.random() * 5)}</Badge>
+                      <Badge variant="default">+{stats.proUpgradesToday}</Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -269,18 +299,37 @@ export default function Admin() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                      <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                      <div>
-                        <p className="text-sm font-medium">Usuários inativos</p>
-                        <p className="text-xs text-muted-foreground">15 usuários não acessaram há 30 dias</p>
+                    {stats.totalUsers > 0 && stats.activeUsers < stats.totalUsers * 0.8 && (
+                      <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                        <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                        <div>
+                          <p className="text-sm font-medium">Usuários inativos</p>
+                          <p className="text-xs text-muted-foreground">
+                            {stats.totalUsers - stats.activeUsers} usuários não acessaram há 30 dias
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    
+                    {stats.proUsers > 0 && stats.proUsers < stats.totalUsers * 0.1 && (
+                      <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <Crown className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-medium">Baixa conversão Pro</p>
+                          <p className="text-xs text-muted-foreground">
+                            Apenas {((stats.proUsers / stats.totalUsers) * 100).toFixed(1)}% dos usuários são Pro
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <Zap className="w-4 h-4 text-green-600" />
                       <div>
                         <p className="text-sm font-medium">Sistema estável</p>
-                        <p className="text-xs text-muted-foreground">Todos os serviços funcionando normalmente</p>
+                        <p className="text-xs text-muted-foreground">
+                          {stats.totalUsers} usuários ativos • {stats.totalLinks} links criados • {stats.totalClicks} cliques totais
+                        </p>
                       </div>
                     </div>
                   </div>

@@ -8,13 +8,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Mail, CreditCard, Upload } from 'lucide-react';
+import { User, Mail, CreditCard, Upload, Crown } from 'lucide-react';
+import { CheckoutForm } from '@/components/Payment/CheckoutForm';
+import { useSubscription } from '@/hooks/useSubscription';
 
 export default function AccountSettings() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const { toast } = useToast();
+  const { manageSubscription, cancelSubscription, isPro } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
@@ -215,8 +219,48 @@ export default function AccountSettings() {
                 </p>
               )}
             </div>
-            {profile?.subscription_tier === 'free' && (
-              <Button>Fazer Upgrade</Button>
+            {!isPro ? (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="flex items-center gap-2">
+                    <Crown className="w-4 h-4" />
+                    Fazer Upgrade
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Upgrade para Pro</DialogTitle>
+                  </DialogHeader>
+                  <CheckoutForm 
+                    onSuccess={() => {
+                      refreshProfile();
+                      toast({
+                        title: 'Sucesso!',
+                        description: 'Sua assinatura Pro foi ativada.',
+                      });
+                    }}
+                    onCancel={() => {}}
+                  />
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <div className="space-y-2">
+                <Button 
+                  variant="outline" 
+                  onClick={manageSubscription}
+                  className="flex items-center gap-2"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Gerenciar Assinatura
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={cancelSubscription}
+                  className="text-destructive"
+                >
+                  Cancelar Assinatura
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>

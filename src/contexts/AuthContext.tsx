@@ -12,6 +12,8 @@ interface Profile {
   subscription_active: boolean;
   subscription_end_date: string | null;
   custom_domain: string | null;
+  abacatepay_customer_id?: string | null;
+  abacatepay_subscription_id?: string | null;
   role?: 'user' | 'admin' | 'moderator';
 }
 

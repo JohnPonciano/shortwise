@@ -27,6 +27,8 @@ interface AnalyticsData {
   topDevices: Array<{ device: string; clicks: number }>;
   topBrowsers: Array<{ browser: string; clicks: number }>;
   clicksByDay: Array<{ date: string; clicks: number }>;
+  topReferrers: Array<{ referer: string; clicks: number }>;
+  averageClicksPerLink: number;
 }
 
 export default function AnalyticsOverview() {
@@ -41,7 +43,9 @@ export default function AnalyticsOverview() {
     topCountries: [],
     topDevices: [],
     topBrowsers: [],
-    clicksByDay: []
+    clicksByDay: [],
+    topReferrers: [],
+    averageClicksPerLink: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -95,19 +99,52 @@ export default function AnalyticsOverview() {
         .map(([device, clicks]) => ({ device, clicks }))
         .sort((a, b) => b.clicks - a.clicks);
 
-      // Processar dados de navegadores (simulado por enquanto)
-      const processedBrowsers = [
-        { browser: 'Chrome', clicks: Math.floor(Math.random() * 100) + 50 },
-        { browser: 'Safari', clicks: Math.floor(Math.random() * 50) + 20 },
-        { browser: 'Firefox', clicks: Math.floor(Math.random() * 30) + 10 },
-        { browser: 'Edge', clicks: Math.floor(Math.random() * 20) + 5 }
-      ];
+      // Processar dados de navegadores
+      const browserCounts = allClicks?.reduce((acc, click) => {
+        const browser = click.browser || 'Unknown';
+        acc[browser] = (acc[browser] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+      
+      const processedBrowsers = Object.entries(browserCounts)
+        .map(([browser, clicks]) => ({ browser, clicks }))
+        .sort((a, b) => b.clicks - a.clicks)
+        .slice(0, 4);
 
-      // Processar dados por dia (simulado por enquanto)
-      const processedClicksByDay = Array.from({ length: 7 }, (_, i) => ({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'),
-        clicks: Math.floor(Math.random() * 50) + 10
-      })).reverse();
+      // Processar dados por dia (últimos 7 dias)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const clicksByDay = allClicks?.filter(click => 
+        new Date(click.clicked_at) >= sevenDaysAgo
+      ) || [];
+      
+      const dayCounts = clicksByDay.reduce((acc, click) => {
+        const date = new Date(click.clicked_at).toLocaleDateString('pt-BR');
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const processedClicksByDay = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR');
+        return {
+          date,
+          clicks: dayCounts[date] || 0
+        };
+      }).reverse();
+
+      // Processar dados de referrers
+      const referrerCounts = allClicks?.reduce((acc, click) => {
+        const referer = click.referer || 'Direct';
+        acc[referer] = (acc[referer] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+      
+      const processedReferrers = Object.entries(referrerCounts)
+        .map(([referer, clicks]) => ({ referer, clicks }))
+        .sort((a, b) => b.clicks - a.clicks)
+        .slice(0, 5);
+
+      // Calcular média de cliques por link
+      const averageClicksPerLink = totalLinks > 0 ? (totalClicks || 0) / totalLinks : 0;
 
       setAnalytics({
         totalClicks: totalClicks || 0,
@@ -119,7 +156,9 @@ export default function AnalyticsOverview() {
         topCountries: processedCountries,
         topDevices: processedDevices,
         topBrowsers: processedBrowsers,
-        clicksByDay: processedClicksByDay
+        clicksByDay: processedClicksByDay,
+        topReferrers: processedReferrers,
+        averageClicksPerLink
       });
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
@@ -197,12 +236,12 @@ export default function AnalyticsOverview() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Engajamento</CardTitle>
+            <CardTitle className="text-sm font-medium">Média de Cliques</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {analytics.totalLinks > 0 ? ((analytics.totalClicks / analytics.totalLinks) * 100).toFixed(1) : 0}%
+              {analytics.averageClicksPerLink.toFixed(1)}
             </div>
             <p className="text-xs text-muted-foreground">
               Cliques por link criado
@@ -306,6 +345,31 @@ export default function AnalyticsOverview() {
                   <span className="font-medium">{day.date}</span>
                   <span className="text-sm text-muted-foreground">
                     {day.clicks.toLocaleString()} cliques
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Referrers */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="w-5 h-5" />
+              Top Referrers
+            </CardTitle>
+            <CardDescription>Principais fontes de tráfego</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {analytics.topReferrers.map((referer) => (
+                <div key={referer.referer} className="flex items-center justify-between">
+                  <span className="font-medium truncate max-w-[200px]" title={referer.referer}>
+                    {referer.referer}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {referer.clicks.toLocaleString()} cliques
                   </span>
                 </div>
               ))}

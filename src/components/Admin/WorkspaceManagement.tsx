@@ -35,6 +35,7 @@ interface Workspace {
   };
   links_count?: number;
   members_count?: number;
+  pending_invites_count?: number;
 }
 
 export default function WorkspaceManagement() {
@@ -71,10 +72,23 @@ export default function WorkspaceManagement() {
         .from('links')
         .select('workspace_id');
 
+      // Buscar todos os membros de workspace
+      const { data: allWorkspaceMembers } = await supabase
+        .from('workspace_members')
+        .select('workspace_id');
+
+      // Buscar convites pendentes
+      const { data: allPendingInvites } = await supabase
+        .from('workspace_invites')
+        .select('workspace_id')
+        .is('accepted_at', null);
+
       // Processar dados
       const processedWorkspaces = workspacesData?.map(workspace => {
         const owner = profilesData?.find(p => p.user_id === workspace.owner_id);
         const linksCount = allLinks?.filter(l => l.workspace_id === workspace.id).length || 0;
+        const membersCount = allWorkspaceMembers?.filter(m => m.workspace_id === workspace.id).length || 0;
+        const pendingInvitesCount = allPendingInvites?.filter(i => i.workspace_id === workspace.id).length || 0;
         
         return {
           ...workspace,
@@ -84,7 +98,8 @@ export default function WorkspaceManagement() {
             avatar_url: owner.avatar_url
           } : null,
           links_count: linksCount,
-          members_count: 1, // Por enquanto, apenas o proprietário
+          members_count: membersCount,
+          pending_invites_count: pendingInvitesCount,
         };
       }) || [];
 
@@ -184,6 +199,11 @@ export default function WorkspaceManagement() {
                         <span className="text-xs text-muted-foreground">
                           <Users className="w-3 h-3 inline mr-1" />
                           {workspace.members_count} membros
+                          {workspace.pending_invites_count > 0 && (
+                            <span className="ml-1 text-orange-500">
+                              (+{workspace.pending_invites_count} convites)
+                            </span>
+                          )}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           <Calendar className="w-3 h-3 inline mr-1" />
@@ -292,6 +312,10 @@ export default function WorkspaceManagement() {
                     <div className="flex justify-between">
                       <span>Membros:</span>
                       <span className="font-medium">{selectedWorkspace.members_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Convites pendentes:</span>
+                      <span className="font-medium">{selectedWorkspace.pending_invites_count || 0}</span>
                     </div>
                   </div>
                 </div>

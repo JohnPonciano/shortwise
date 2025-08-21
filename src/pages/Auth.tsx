@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,12 @@ import { supabase } from '@/integrations/supabase/client';
 const Auth = () => {
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const redirectUrl = searchParams.get('redirect');
 
   // Verificar se há um convite pendente ao carregar a página
   useEffect(() => {
@@ -25,10 +28,15 @@ const Auth = () => {
       // Se há um convite pendente e o usuário está logado, processar
       navigate(`/invite/${pendingToken}`);
     } else if (user) {
-      // Se não há convite pendente mas está logado, ir para dashboard
-      navigate('/dashboard');
+      // Se há URL de redirecionamento, usar ela
+      if (redirectUrl) {
+        navigate(redirectUrl);
+      } else {
+        // Se não há convite pendente mas está logado, ir para dashboard
+        navigate('/dashboard');
+      }
     }
-  }, [user, navigate]);
+  }, [user, navigate, redirectUrl]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +57,8 @@ const Auth = () => {
       const pendingToken = localStorage.getItem('pending_invite_token');
       if (pendingToken) {
         navigate(`/invite/${pendingToken}`);
+      } else if (redirectUrl) {
+        navigate(redirectUrl);
       } else {
         navigate('/dashboard');
       }

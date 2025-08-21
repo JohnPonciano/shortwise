@@ -13,7 +13,7 @@ import { WorkspaceSelector } from '@/components/WorkspaceSelector';
 import { LinkExport } from '@/components/LinkExport';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { Plus, Link, BarChart3, Copy, ExternalLink, Settings, Users, Edit, QrCode, Crown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface Link {
   id: string;
@@ -31,7 +31,8 @@ interface Link {
 }
 
 export default function Dashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
+  const location = useLocation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentWorkspace, loading: workspacesLoading } = useWorkspaces();
@@ -48,6 +49,34 @@ export default function Dashboard() {
       fetchLinks();
     }
   }, [user, currentWorkspace]);
+
+  // Refresh profile quando volta do pagamento com sucesso
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('subscription') === 'success') {
+      (async () => {
+        // Fallback: se webhook não chegou ainda, atualiza direto o perfil marcando pro
+        try {
+          const last = localStorage.getItem('abacatepay_last_billing');
+          const parsed = last ? JSON.parse(last) : null;
+          if (parsed && user) {
+            await supabase
+              .from('profiles')
+              .update({
+                subscription_tier: 'pro',
+                subscription_active: true,
+                abacatepay_customer_id: parsed.customerId || null,
+                abacatepay_subscription_id: parsed.id || null,
+              })
+              .eq('user_id', user.id);
+          }
+        } catch {}
+
+        await refreshProfile();
+        toast({ title: 'Assinatura ativada', description: 'Bem-vindo ao Pro! 🎉' });
+      })();
+    }
+  }, [location.search]);
 
   const fetchLinks = async () => {
     if (!user || !currentWorkspace) return;
