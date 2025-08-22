@@ -223,6 +223,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          abacatepay_customer_id: string | null
+          abacatepay_subscription_id: string | null
           avatar_url: string | null
           created_at: string
           custom_domain: string | null
@@ -238,6 +240,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          abacatepay_customer_id?: string | null
+          abacatepay_subscription_id?: string | null
           avatar_url?: string | null
           created_at?: string
           custom_domain?: string | null
@@ -253,6 +257,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          abacatepay_customer_id?: string | null
+          abacatepay_subscription_id?: string | null
           avatar_url?: string | null
           created_at?: string
           custom_domain?: string | null
