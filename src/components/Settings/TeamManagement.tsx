@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Mail, UserPlus, Crown, Shield, User, Trash2, Copy } from 'lucide-react';
@@ -30,14 +31,6 @@ interface Workspace {
   id: string;
   name: string;
   slug: string;
-  owner_id: string;
-}
-
-interface WorkspaceOwner {
-  id: string;
-  email: string;
-  full_name: string;
-  avatar_url: string;
 }
 
 export default function TeamManagement() {
@@ -46,7 +39,6 @@ export default function TeamManagement() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [workspaceOwner, setWorkspaceOwner] = useState<WorkspaceOwner | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
@@ -62,35 +54,21 @@ export default function TeamManagement() {
   useEffect(() => {
     if (selectedWorkspace) {
       loadTeamMembers();
-      loadWorkspaceOwner();
     }
   }, [selectedWorkspace]);
 
   const loadWorkspaces = async () => {
     try {
-      // Load workspaces where user is owner
-      const { data: ownedWorkspaces, error: ownedError } = await supabase
+      const { data, error } = await supabase
         .from('workspaces')
-        .select('id, name, slug, owner_id')
+        .select('id, name, slug')
         .eq('owner_id', user?.id);
 
-      if (ownedError) throw ownedError;
-
-      // Load workspaces where user is a member
-      const { data: memberWorkspaces, error: memberError } = await supabase
-        .from('workspace_members')
-        .select('workspaces(id, name, slug, owner_id)')
-        .eq('user_id', user?.id);
-
-      if (memberError) throw memberError;
-
-      const memberWorkspacesList = memberWorkspaces?.map((m: any) => m.workspaces).filter(Boolean) || [];
-      const allWorkspaces = [...(ownedWorkspaces || []), ...memberWorkspacesList];
+      if (error) throw error;
+      setWorkspaces(data || []);
       
-      setWorkspaces(allWorkspaces);
-      
-      if (allWorkspaces.length > 0) {
-        setSelectedWorkspace(allWorkspaces[0].id);
+      if (data && data.length > 0) {
+        setSelectedWorkspace(data[0].id);
       }
     } catch (error: any) {
       console.error('Error loading workspaces:', error);
@@ -101,26 +79,6 @@ export default function TeamManagement() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadWorkspaceOwner = async () => {
-    if (!selectedWorkspace) return;
-
-    try {
-      const workspace = workspaces.find(w => w.id === selectedWorkspace);
-      if (!workspace) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url')
-        .eq('user_id', workspace.owner_id)
-        .single();
-
-      if (error) throw error;
-      setWorkspaceOwner(data);
-    } catch (error: any) {
-      console.error('Error loading workspace owner:', error);
     }
   };
 
@@ -138,6 +96,7 @@ export default function TeamManagement() {
 
       if (error) throw error;
       
+      // Filter out any members where profiles data might be null
       const validMembers = (data || []).filter(member => member.profiles);
       setTeamMembers(validMembers);
     } catch (error: any) {
@@ -204,6 +163,7 @@ export default function TeamManagement() {
       });
       if (error) throw error;
 
+      // Aqui poderíamos chamar uma Edge Function para enviar email de convite
       toast({ title: 'Convite criado!', description: `Um convite foi criado para ${inviteEmail}` });
 
       setShowInviteDialog(false);
@@ -289,9 +249,9 @@ export default function TeamManagement() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'owner': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'admin': return 'bg-blue-100 text-blue-800 border-blue-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'owner': return 'bg-yellow-100 text-yellow-800';
+      case 'admin': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -304,16 +264,9 @@ export default function TeamManagement() {
       .slice(0, 2);
   };
 
-  const isCurrentUserOwner = () => {
-    const workspace = workspaces.find(w => w.id === selectedWorkspace);
-    return workspace?.owner_id === user?.id;
-  };
-
   if (loading) {
     return <div className="flex justify-center p-8">Carregando equipes...</div>;
   }
-
-  const totalMembers = teamMembers.length + (workspaceOwner ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -329,18 +282,16 @@ export default function TeamManagement() {
                 Gerencie membros da equipe e suas permissões por workspace
               </CardDescription>
             </div>
-            {isCurrentUserOwner() && (
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={generateInviteLink}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Gerar Link de Convite
-                </Button>
-                <Button onClick={() => setShowInviteDialog(true)}>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Convidar Membro
-                </Button>
-              </div>
-            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={generateInviteLink}>
+                <Copy className="w-4 h-4 mr-2" />
+                Gerar Link de Convite
+              </Button>
+              <Button onClick={() => setShowInviteDialog(true)}>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Convidar Membro
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -362,7 +313,7 @@ export default function TeamManagement() {
           </div>
 
           {/* Invite Link Section */}
-          {inviteLink && isCurrentUserOwner() && (
+          {inviteLink && (
             <div className="p-4 bg-muted rounded-lg space-y-2">
               <h4 className="font-medium">Link de Convite Gerado</h4>
               <div className="flex items-center gap-2">
@@ -378,36 +329,21 @@ export default function TeamManagement() {
           )}
 
           {/* Team Members List */}
-          <div className="space-y-4">
-            <h3 className="font-medium">Membros da Equipe ({totalMembers})</h3>
-            
-            {/* Show Workspace Owner First */}
-            {workspaceOwner && (
-              <div className="p-4 border rounded-lg bg-yellow-50 hover:bg-yellow-100/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={workspaceOwner.avatar_url} />
-                      <AvatarFallback>
-                        {getInitials(workspaceOwner.full_name || workspaceOwner.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{workspaceOwner.full_name || workspaceOwner.email}</p>
-                      <p className="text-sm text-muted-foreground">{workspaceOwner.email}</p>
-                      <p className="text-xs text-muted-foreground">Criador do workspace</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className={`flex items-center gap-1 ${getRoleColor('owner')}`}>
-                    <Crown className="w-4 h-4" />
-                    Proprietário
-                  </Badge>
-                </div>
-              </div>
-            )}
-
-            {/* Show Team Members */}
-            {teamMembers.length > 0 && (
+          {teamMembers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum membro na equipe</h3>
+              <p className="text-muted-foreground mb-4">
+                Convide pessoas para colaborar no seu workspace
+              </p>
+              <Button onClick={() => setShowInviteDialog(true)}>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Convidar Primeiro Membro
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="font-medium">Membros da Equipe ({teamMembers.length})</h3>
               <div className="space-y-3">
                 {teamMembers.map((member) => (
                   <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -431,7 +367,7 @@ export default function TeamManagement() {
                         {getRoleIcon(member.role)}
                         {getRoleName(member.role)}
                       </Badge>
-                      {isCurrentUserOwner() && (
+                      {member.role !== 'owner' && (
                         <>
                           <Select
                             value={member.role}
@@ -459,94 +395,75 @@ export default function TeamManagement() {
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* Empty State */}
-            {totalMembers === 0 && (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Nenhum membro na equipe</h3>
-                <p className="text-muted-foreground mb-4">
-                  Convide pessoas para colaborar no seu workspace
-                </p>
-                {isCurrentUserOwner() && (
-                  <Button onClick={() => setShowInviteDialog(true)}>
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Convidar Primeiro Membro
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Invite Member Dialog */}
-      {isCurrentUserOwner() && (
-        <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Convidar Membro para Equipe</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleInviteMember} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="invite-email">Email do Membro</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="membro@exemplo.com"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="invite-role">Role no Workspace</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        <div>
-                          <p className="font-medium">Membro</p>
-                          <p className="text-sm text-muted-foreground">Pode criar e editar links</p>
-                        </div>
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Convidar Membro para Equipe</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleInviteMember} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">Email do Membro</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="membro@exemplo.com"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="invite-role">Role no Workspace</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <div>
+                        <p className="font-medium">Membro</p>
+                        <p className="text-sm text-muted-foreground">Pode criar e editar links</p>
                       </div>
-                    </SelectItem>
-                    <SelectItem value="admin">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        <div>
-                          <p className="font-medium">Administrador</p>
-                          <p className="text-sm text-muted-foreground">Pode gerenciar membros e configurações</p>
-                        </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="admin">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      <div>
+                        <p className="font-medium">Administrador</p>
+                        <p className="text-sm text-muted-foreground">Pode gerenciar membros e configurações</p>
                       </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowInviteDialog(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Enviar Convite
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowInviteDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit">
+                <Mail className="w-4 h-4 mr-2" />
+                Enviar Convite
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
